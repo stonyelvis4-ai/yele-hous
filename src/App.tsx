@@ -125,7 +125,7 @@ const emptyCollectionForm: Omit<Collection, 'id'> = {
   image: '',
   isFeatured: false
 }
-const adminLoginDefaults = { email: 'admin@yelehouse.com', password: 'Admin@2026' }
+const emptyAdminLoginForm = { email: '', password: '' }
 const emptyToast = { title: '', message: '' }
 const emptyPasswordForm = { currentPassword: '', nextPassword: '', confirmPassword: '' }
 
@@ -272,7 +272,7 @@ export default function App() {
   const [productForm, setProductForm] = useState<Omit<Product, 'id'>>(emptyProductForm)
   const [collectionForm, setCollectionForm] = useState<Omit<Collection, 'id'>>(emptyCollectionForm)
   const [orderStatusFilter, setOrderStatusFilter] = useState<OrderStatus | 'Tous'>('Tous')
-  const [loginForm, setLoginForm] = useState(adminLoginDefaults)
+  const [loginForm, setLoginForm] = useState(emptyAdminLoginForm)
   const [loginError, setLoginError] = useState('')
   const [showAdminPassword, setShowAdminPassword] = useState(false)
   const [settingsPasswordForm, setSettingsPasswordForm] = useState(emptyPasswordForm)
@@ -946,6 +946,8 @@ export default function App() {
   const handleAdminLogout = () => {
     void (async () => {
       await logoutAdmin()
+      setLoginForm(emptyAdminLoginForm)
+      setShowAdminPassword(false)
       showToast('Session fermee', 'Vous avez ete deconnecte du back-office.')
       navigate('/admin/login', { replace: true })
     })()
@@ -1059,17 +1061,21 @@ export default function App() {
                   <h2 className="editorial-title text-[28px] font-semibold text-[#241f2b]">Connexion administrateur</h2>
                 </div>
 
-                <form onSubmit={handleAdminLogin} className="grid gap-5">
+                <form onSubmit={handleAdminLogin} className="grid gap-5" autoComplete="off">
+                  <input type="text" name="fake-admin-username" autoComplete="username" className="hidden" tabIndex={-1} />
+                  <input type="password" name="fake-admin-password" autoComplete="current-password" className="hidden" tabIndex={-1} />
                   <div>
                     <label className="form-label">EMAIL</label>
                     <input
                       type="email"
+                      name="admin-access-email"
+                      autoComplete="off"
                       value={loginForm.email}
                       onChange={(event) => {
                         setLoginError('')
                         setLoginForm((current) => ({ ...current, email: event.target.value }))
                       }}
-                      placeholder="admin@yelehouse.com"
+                      placeholder="Votre email administrateur"
                       className="field-input"
                     />
                   </div>
@@ -1079,12 +1085,14 @@ export default function App() {
                     <div className="relative">
                       <input
                         type={showAdminPassword ? 'text' : 'password'}
+                        name="admin-access-passcode"
+                        autoComplete="new-password"
                         value={loginForm.password}
                         onChange={(event) => {
                           setLoginError('')
                           setLoginForm((current) => ({ ...current, password: event.target.value }))
                         }}
-                        placeholder="Admin@2026"
+                        placeholder="Votre mot de passe"
                         className="field-input pr-14"
                       />
                       <button
