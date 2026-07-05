@@ -4,5 +4,6 @@ dist/
 *.tsbuildinfo
 .env
 .env.*
+.vercel
 .DS_Store
 Thumbs.db
