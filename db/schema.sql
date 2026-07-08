@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS collections (
   description TEXT NOT NULL,
   image TEXT NOT NULL,
   is_featured BOOLEAN NOT NULL DEFAULT FALSE,
+  deleted_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -35,12 +36,28 @@ CREATE TABLE IF NOT EXISTS products (
   stock INTEGER NOT NULL DEFAULT 0 CHECK (stock >= 0),
   is_best_seller BOOLEAN NOT NULL DEFAULT FALSE,
   image TEXT NOT NULL,
+  images TEXT[] NOT NULL DEFAULT '{}',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 ALTER TABLE products
 ADD COLUMN IF NOT EXISTS collection_id TEXT REFERENCES collections(id) ON DELETE SET NULL;
+
+ALTER TABLE products
+ADD COLUMN IF NOT EXISTS images TEXT[] NOT NULL DEFAULT '{}';
+
+ALTER TABLE collections
+ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+
+ALTER TABLE products
+ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+
+UPDATE products
+SET images = CASE
+  WHEN COALESCE(array_length(images, 1), 0) = 0 AND image <> '' THEN ARRAY[image]
+  ELSE images
+END;
 
 CREATE TABLE IF NOT EXISTS orders (
   id TEXT PRIMARY KEY,
@@ -74,8 +91,12 @@ CREATE TABLE IF NOT EXISTS reviews (
   rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
   title TEXT NOT NULL,
   body TEXT NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  deleted_at TIMESTAMPTZ
 );
+
+ALTER TABLE reviews
+ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 
 CREATE TABLE IF NOT EXISTS messages (
   id TEXT PRIMARY KEY,
@@ -96,10 +117,13 @@ CREATE TABLE IF NOT EXISTS shipping_rates (
 
 CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
 CREATE INDEX IF NOT EXISTS idx_products_best_seller ON products(is_best_seller);
+CREATE INDEX IF NOT EXISTS idx_products_deleted_at ON products(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_collections_deleted_at ON collections(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
 CREATE INDEX IF NOT EXISTS idx_reviews_rating ON reviews(rating);
+CREATE INDEX IF NOT EXISTS idx_reviews_deleted_at ON reviews(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_messages_is_read ON messages(is_read);
 CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at DESC);
 

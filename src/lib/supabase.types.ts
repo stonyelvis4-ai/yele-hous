@@ -22,6 +22,7 @@ export interface Database {
           description: string
           image: string
           is_featured: boolean
+          deleted_at: string | null
           created_at: string
           updated_at: string
         }
@@ -41,6 +42,8 @@ export interface Database {
           stock: number
           is_best_seller: boolean
           image: string
+          images: string[] | null
+          deleted_at: string | null
           created_at: string
           updated_at: string
         }
@@ -81,6 +84,7 @@ export interface Database {
           title: string
           body: string
           created_at: string
+          deleted_at: string | null
         }
       }
       messages: {

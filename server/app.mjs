@@ -147,6 +147,8 @@ function requireAdminApiAuth(req, res, next) {
 }
 
 function mapProduct(row) {
+  const images = Array.isArray(row.images) ? row.images.filter(Boolean) : []
+  const primaryImage = row.image || images[0] || ''
   return {
     id: row.id,
     name: row.name,
@@ -160,7 +162,9 @@ function mapProduct(row) {
     sizes: row.sizes ?? [],
     stock: row.stock,
     isBestSeller: row.is_best_seller,
-    image: row.image
+    image: primaryImage,
+    images: images.length ? images : primaryImage ? [primaryImage] : [],
+    deletedAt: row.deleted_at ?? undefined
   }
 }
 
@@ -171,7 +175,8 @@ function mapCollection(row) {
     slug: row.slug,
     description: row.description,
     image: row.image,
-    isFeatured: row.is_featured
+    isFeatured: row.is_featured,
+    deletedAt: row.deleted_at ?? undefined
   }
 }
 
@@ -182,7 +187,8 @@ function mapReview(row) {
     rating: row.rating,
     title: row.title,
     body: row.body,
-    createdAt: row.created_at
+    createdAt: row.created_at,
+    deletedAt: row.deleted_at ?? undefined
   }
 }
 
@@ -198,18 +204,35 @@ function mapMessage(row) {
   }
 }
 
-async function listProducts() {
-  const { rows } = await pool.query('select * from products order by created_at desc, id desc')
+async function listProducts({ onlyDeleted = false, includeDeleted = false } = {}) {
+  const conditions = []
+  if (onlyDeleted) conditions.push('deleted_at is not null')
+  else if (!includeDeleted) conditions.push('deleted_at is null')
+
+  const whereClause = conditions.length ? `where ${conditions.join(' and ')}` : ''
+  const { rows } = await pool.query(`select * from products ${whereClause} order by coalesce(deleted_at, created_at) desc, id desc`)
   return rows.map(mapProduct)
 }
 
-async function listCollections() {
-  const { rows } = await pool.query('select * from collections order by is_featured desc, created_at desc, id desc')
+async function listCollections({ onlyDeleted = false, includeDeleted = false } = {}) {
+  const conditions = []
+  if (onlyDeleted) conditions.push('deleted_at is not null')
+  else if (!includeDeleted) conditions.push('deleted_at is null')
+
+  const whereClause = conditions.length ? `where ${conditions.join(' and ')}` : ''
+  const { rows } = await pool.query(
+    `select * from collections ${whereClause} order by is_featured desc, coalesce(deleted_at, created_at) desc, id desc`
+  )
   return rows.map(mapCollection)
 }
 
-async function listReviews() {
-  const { rows } = await pool.query('select * from reviews order by created_at desc, id desc')
+async function listReviews({ onlyDeleted = false, includeDeleted = false } = {}) {
+  const conditions = []
+  if (onlyDeleted) conditions.push('deleted_at is not null')
+  else if (!includeDeleted) conditions.push('deleted_at is null')
+
+  const whereClause = conditions.length ? `where ${conditions.join(' and ')}` : ''
+  const { rows } = await pool.query(`select * from reviews ${whereClause} order by coalesce(deleted_at, created_at) desc, id desc`)
   return rows.map(mapReview)
 }
 
@@ -255,9 +278,10 @@ async function buildOrderPricing(items, commune, client) {
       throw error
     }
 
-    const { rows } = await client.query('select id, name, price, stock, image from products where id = $1 limit 1', [
-      productId
-    ])
+    const { rows } = await client.query(
+      'select id, name, price, stock, image from products where id = $1 and deleted_at is null limit 1',
+      [productId]
+    )
     const product = rows[0]
 
     if (!product) {
@@ -342,6 +366,9 @@ async function listOrders() {
 }
 
 function normalizeProductBody(body) {
+  const images = Array.isArray(body.images) ? body.images.map((item) => String(item).trim()).filter(Boolean) : []
+  const image = String(body.image ?? '').trim()
+  const normalizedImages = [image, ...images].filter(Boolean).filter((item, index, list) => list.indexOf(item) === index)
   return {
     id: String(body.id ?? '').trim(),
     name: String(body.name ?? '').trim(),
@@ -358,7 +385,8 @@ function normalizeProductBody(body) {
     sizes: Array.isArray(body.sizes) ? body.sizes.map((item) => String(item).trim()).filter(Boolean) : [],
     stock: Number(body.stock ?? 0),
     isBestSeller: Boolean(body.isBestSeller),
-    image: String(body.image ?? '').trim()
+    image: image || normalizedImages[0] || '',
+    images: normalizedImages
   }
 }
 
@@ -390,16 +418,31 @@ app.get('/api/public/bootstrap', async (_req, res) => {
 })
 
 app.get('/api/admin/bootstrap', requireAdminApiAuth, async (_req, res) => {
-  const [collections, products, orders, reviews, messages, shippingRates] = await Promise.all([
+  const [collections, products, orders, reviews, messages, shippingRates, deletedCollections, deletedProducts, deletedReviews] = await Promise.all([
     listCollections(),
     listProducts(),
     listOrders(),
     listReviews(),
     listMessages(),
-    listShippingRates()
+    listShippingRates(),
+    listCollections({ onlyDeleted: true }),
+    listProducts({ onlyDeleted: true }),
+    listReviews({ onlyDeleted: true })
   ])
 
-  res.json({ collections, products, orders, reviews, messages, shippingRates })
+  res.json({
+    collections,
+    products,
+    orders,
+    reviews,
+    messages,
+    shippingRates,
+    trash: {
+      collections: deletedCollections,
+      products: deletedProducts,
+      reviews: deletedReviews
+    }
+  })
 })
 
 app.post('/api/admin/login', async (req, res) => {
@@ -559,9 +602,35 @@ app.put('/api/collections/:id', requireAdminApiAuth, async (req, res) => {
 })
 
 app.delete('/api/collections/:id', requireAdminApiAuth, async (req, res) => {
-  await pool.query('update products set collection_id = null, updated_at = now() where collection_id = $1', [req.params.id])
-  await pool.query('delete from collections where id = $1', [req.params.id])
-  res.status(204).end()
+  const { rows } = await pool.query(
+    `
+      update collections
+      set deleted_at = now(), updated_at = now()
+      where id = $1 and deleted_at is null
+      returning *
+    `,
+    [req.params.id]
+  )
+  if (!rows.length) {
+    return res.status(404).json({ error: 'Collection not found.' })
+  }
+  res.json(mapCollection(rows[0]))
+})
+
+app.post('/api/collections/:id/restore', requireAdminApiAuth, async (req, res) => {
+  const { rows } = await pool.query(
+    `
+      update collections
+      set deleted_at = null, updated_at = now()
+      where id = $1 and deleted_at is not null
+      returning *
+    `,
+    [req.params.id]
+  )
+  if (!rows.length) {
+    return res.status(404).json({ error: 'Collection not found.' })
+  }
+  res.json(mapCollection(rows[0]))
 })
 
 app.post('/api/products', requireAdminApiAuth, async (req, res) => {
@@ -569,8 +638,8 @@ app.post('/api/products', requireAdminApiAuth, async (req, res) => {
   await pool.query(
     `
       insert into products (
-        id, name, category, collection_id, price, compare_at_price, description, material, colors, sizes, stock, is_best_seller, image
-      ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+        id, name, category, collection_id, price, compare_at_price, description, material, colors, sizes, stock, is_best_seller, image, images
+      ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
     `,
     [
       product.id,
@@ -585,7 +654,8 @@ app.post('/api/products', requireAdminApiAuth, async (req, res) => {
       product.sizes,
       product.stock,
       product.isBestSeller,
-      product.image
+      product.image,
+      product.images
     ]
   )
 
@@ -611,6 +681,7 @@ app.put('/api/products/:id', requireAdminApiAuth, async (req, res) => {
         stock = $11,
         is_best_seller = $12,
         image = $13,
+        images = $14,
         updated_at = now()
       where id = $1
     `,
@@ -627,7 +698,8 @@ app.put('/api/products/:id', requireAdminApiAuth, async (req, res) => {
       product.sizes,
       product.stock,
       product.isBestSeller,
-      product.image
+      product.image,
+      product.images
     ]
   )
 
@@ -636,8 +708,35 @@ app.put('/api/products/:id', requireAdminApiAuth, async (req, res) => {
 })
 
 app.delete('/api/products/:id', requireAdminApiAuth, async (req, res) => {
-  await pool.query('delete from products where id = $1', [req.params.id])
-  res.status(204).end()
+  const { rows } = await pool.query(
+    `
+      update products
+      set deleted_at = now(), updated_at = now()
+      where id = $1 and deleted_at is null
+      returning *
+    `,
+    [req.params.id]
+  )
+  if (!rows.length) {
+    return res.status(404).json({ error: 'Product not found.' })
+  }
+  res.json(mapProduct(rows[0]))
+})
+
+app.post('/api/products/:id/restore', requireAdminApiAuth, async (req, res) => {
+  const { rows } = await pool.query(
+    `
+      update products
+      set deleted_at = null, updated_at = now()
+      where id = $1 and deleted_at is not null
+      returning *
+    `,
+    [req.params.id]
+  )
+  if (!rows.length) {
+    return res.status(404).json({ error: 'Product not found.' })
+  }
+  res.json(mapProduct(rows[0]))
 })
 
 app.post('/api/orders', async (req, res) => {
@@ -716,8 +815,35 @@ app.post('/api/reviews', async (req, res) => {
 })
 
 app.delete('/api/reviews/:id', requireAdminApiAuth, async (req, res) => {
-  await pool.query('delete from reviews where id = $1', [req.params.id])
-  res.status(204).end()
+  const { rows } = await pool.query(
+    `
+      update reviews
+      set deleted_at = now()
+      where id = $1 and deleted_at is null
+      returning *
+    `,
+    [req.params.id]
+  )
+  if (!rows.length) {
+    return res.status(404).json({ error: 'Review not found.' })
+  }
+  res.json(mapReview(rows[0]))
+})
+
+app.post('/api/reviews/:id/restore', requireAdminApiAuth, async (req, res) => {
+  const { rows } = await pool.query(
+    `
+      update reviews
+      set deleted_at = null
+      where id = $1 and deleted_at is not null
+      returning *
+    `,
+    [req.params.id]
+  )
+  if (!rows.length) {
+    return res.status(404).json({ error: 'Review not found.' })
+  }
+  res.json(mapReview(rows[0]))
 })
 
 app.post('/api/messages', async (req, res) => {
@@ -749,14 +875,38 @@ export async function ensureRuntimeSchema() {
           description text not null,
           image text not null,
           is_featured boolean not null default false,
+          deleted_at timestamptz,
           created_at timestamptz not null default now(),
           updated_at timestamptz not null default now()
         )
       `)
 
       await pool.query(`
+        alter table collections
+        add column if not exists deleted_at timestamptz
+      `)
+
+      await pool.query(`
         alter table products
         add column if not exists collection_id text references collections(id) on delete set null
+      `)
+
+      await pool.query(`
+        alter table products
+        add column if not exists images text[] not null default '{}'
+      `)
+
+      await pool.query(`
+        alter table products
+        add column if not exists deleted_at timestamptz
+      `)
+
+      await pool.query(`
+        update products
+        set images = case
+          when coalesce(array_length(images, 1), 0) = 0 and image <> '' then array[image]
+          else images
+        end
       `)
 
       await pool.query(`
@@ -766,6 +916,11 @@ export async function ensureRuntimeSchema() {
           created_at timestamptz not null default now(),
           updated_at timestamptz not null default now()
         )
+      `)
+
+      await pool.query(`
+        alter table reviews
+        add column if not exists deleted_at timestamptz
       `)
 
       for (const [commune, amount] of Object.entries(defaultShippingRates)) {

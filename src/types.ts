@@ -8,6 +8,7 @@ export interface Collection {
   description: string
   image: string
   isFeatured?: boolean
+  deletedAt?: string
 }
 
 export interface Product {
@@ -24,6 +25,8 @@ export interface Product {
   stock: number
   isBestSeller?: boolean
   image: string
+  images: string[]
+  deletedAt?: string
 }
 
 export interface CartItem {
@@ -57,6 +60,7 @@ export interface Review {
   title: string
   body: string
   createdAt: string
+  deletedAt?: string
 }
 
 export interface ContactMessage {

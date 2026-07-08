@@ -50,7 +50,8 @@ export const initialProducts: Product[] = [
     stock: 8,
     isBestSeller: true,
     image:
-      'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=1200&q=80'
+      'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=1200&q=80',
+    images: ['https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=1200&q=80']
   },
   {
     id: 'sac-ebene',
@@ -64,7 +65,8 @@ export const initialProducts: Product[] = [
     sizes: ['Unique'],
     stock: 5,
     image:
-      'https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=1200&q=80'
+      'https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=1200&q=80',
+    images: ['https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=1200&q=80']
   },
   {
     id: 'parfum-soleil',
@@ -79,7 +81,8 @@ export const initialProducts: Product[] = [
     stock: 19,
     isBestSeller: true,
     image:
-      'https://images.unsplash.com/photo-1594035910387-fea47794261f?auto=format&fit=crop&w=1200&q=80'
+      'https://images.unsplash.com/photo-1594035910387-fea47794261f?auto=format&fit=crop&w=1200&q=80',
+    images: ['https://images.unsplash.com/photo-1594035910387-fea47794261f?auto=format&fit=crop&w=1200&q=80']
   },
   {
     id: 'manchette-bahia',
@@ -93,7 +96,8 @@ export const initialProducts: Product[] = [
     sizes: ['Unique'],
     stock: 12,
     image:
-      'https://images.unsplash.com/photo-1617038220319-276d3cfab638?auto=format&fit=crop&w=1200&q=80'
+      'https://images.unsplash.com/photo-1617038220319-276d3cfab638?auto=format&fit=crop&w=1200&q=80',
+    images: ['https://images.unsplash.com/photo-1617038220319-276d3cfab638?auto=format&fit=crop&w=1200&q=80']
   }
 ]
 

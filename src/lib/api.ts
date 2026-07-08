@@ -40,6 +40,11 @@ export function fetchAdminBootstrap() {
     reviews: Review[]
     messages: ContactMessage[]
     shippingRates: ShippingRates
+    trash: {
+      collections: Collection[]
+      products: Product[]
+      reviews: Review[]
+    }
   }>('/admin/bootstrap')
 }
 
@@ -81,7 +86,11 @@ export function updateCollection(collection: Collection) {
 }
 
 export function deleteCollection(id: string) {
-  return request<void>(`/collections/${id}`, { method: 'DELETE' })
+  return request<Collection>(`/collections/${id}`, { method: 'DELETE' })
+}
+
+export function restoreCollection(id: string) {
+  return request<Collection>(`/collections/${id}/restore`, { method: 'POST' })
 }
 
 export function createProduct(product: Product) {
@@ -93,7 +102,11 @@ export function updateProduct(product: Product) {
 }
 
 export function deleteProduct(id: string) {
-  return request<void>(`/products/${id}`, { method: 'DELETE' })
+  return request<Product>(`/products/${id}`, { method: 'DELETE' })
+}
+
+export function restoreProduct(id: string) {
+  return request<Product>(`/products/${id}/restore`, { method: 'POST' })
 }
 
 export function createOrder(order: Order) {
@@ -109,7 +122,11 @@ export function createReview(review: Review) {
 }
 
 export function deleteReview(id: string) {
-  return request<void>(`/reviews/${id}`, { method: 'DELETE' })
+  return request<Review>(`/reviews/${id}`, { method: 'DELETE' })
+}
+
+export function restoreReview(id: string) {
+  return request<Review>(`/reviews/${id}/restore`, { method: 'POST' })
 }
 
 export function createMessage(message: ContactMessage) {

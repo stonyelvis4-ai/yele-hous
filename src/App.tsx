@@ -49,6 +49,9 @@ import {
   deleteReview as deleteReviewRequest,
   fetchAdminBootstrap,
   fetchPublicBootstrap,
+  restoreCollection as restoreCollectionRequest,
+  restoreProduct as restoreProductRequest,
+  restoreReview as restoreReviewRequest,
   updateShippingRates as updateShippingRatesRequest,
   updateCollection as updateCollectionRequest,
   updateMessage as updateMessageRequest,
@@ -94,10 +97,11 @@ const adminLinks = [
   { path: '/admin/products', label: 'Catalogue', icon: PackagePlus },
   { path: '/admin/reviews', label: 'Avis', icon: Filter },
   { path: '/admin/messages', label: 'Messages', icon: MessageCircleMore },
+  { path: '/admin/trash', label: 'Corbeille', icon: Trash2 },
   { path: '/admin/settings', label: 'Parametres', icon: Settings }
 ] as const
 
-const protectedAdminPaths = ['/admin/dashboard', '/admin/orders', '/admin/products', '/admin/reviews', '/admin/messages', '/admin/settings'] as const
+const protectedAdminPaths = ['/admin/dashboard', '/admin/orders', '/admin/products', '/admin/reviews', '/admin/messages', '/admin/trash', '/admin/settings'] as const
 
 type PublicNavId = (typeof publicNavItems)[number]['id']
 type AdminPath = (typeof protectedAdminPaths)[number]
@@ -117,7 +121,8 @@ const emptyProductForm: Omit<Product, 'id'> = {
   sizes: [''],
   stock: 0,
   isBestSeller: false,
-  image: ''
+  image: '',
+  images: []
 }
 
 const emptyReview = { author: '', rating: 5, title: '', body: '' }
@@ -132,11 +137,17 @@ const emptyCollectionForm: Omit<Collection, 'id'> = {
 const emptyAdminLoginForm = { email: '', password: '' }
 const emptyToast = { title: '', message: '' }
 const emptyPasswordForm = { currentPassword: '', nextPassword: '', confirmPassword: '' }
+const emptyGalleryImageInput = ''
 
 function dataUrlByteSize(dataUrl: string) {
   const base64 = dataUrl.split(',')[1] ?? ''
   const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0
   return Math.ceil((base64.length * 3) / 4) - padding
+}
+
+function uniqueImageList(items: string[]) {
+  const normalized = items.map((item) => item.trim()).filter(Boolean)
+  return normalized.filter((item, index) => normalized.indexOf(item) === index)
 }
 
 function fileToDataUrl(file: File) {
@@ -301,6 +312,12 @@ function adminHeading(path: AdminPath) {
         title: 'Parametres Admin',
         copy: 'Pilotez l acces, la session active et les points de controle du back-office prive.'
       }
+    case '/admin/trash':
+      return {
+        kicker: 'BACK OFFICE',
+        title: 'Corbeille Admin',
+        copy: 'Retrouvez ici les produits, collections et avis supprimes, puis restaurez-les en un clic.'
+      }
     default:
       return {
         kicker: 'BACK OFFICE',
@@ -315,6 +332,9 @@ export default function App() {
   const [products, setProducts] = useState<Product[]>(initialProducts)
   const [orders, setOrders] = useState<Order[]>(initialOrders)
   const [reviews, setReviews] = useState<Review[]>(initialReviews)
+  const [deletedCollections, setDeletedCollections] = useState<Collection[]>([])
+  const [deletedProducts, setDeletedProducts] = useState<Product[]>([])
+  const [deletedReviews, setDeletedReviews] = useState<Review[]>([])
   const [messages, setMessages] = useState<ContactMessage[]>(initialMessages)
   const [shippingRates, setShippingRates] = useState<ShippingRates>(shippingByCommune)
   const [cart, setCart] = useLocalStorage<CartItem[]>('yele-cart', [])
@@ -325,7 +345,7 @@ export default function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [category, setCategory] = useState<Category | 'Tous'>('Tous')
   const [search, setSearch] = useState('')
-  const [selectedOptions, setSelectedOptions] = useState<Record<string, { color: string; size: string }>>({})
+  const [selectedOptions, setSelectedOptions] = useState<Record<string, { color: string; size: string; image?: string }>>({})
   const [isCartOpen, setIsCartOpen] = useState(false)
   const [orderForm, setOrderForm] = useState({
     customerName: '',
@@ -358,6 +378,7 @@ export default function App() {
   const [toast, setToast] = useState(emptyToast)
   const [previewProductId, setPreviewProductId] = useState<string | null>(null)
   const [adminCustomColor, setAdminCustomColor] = useState('')
+  const [adminGalleryImageInput, setAdminGalleryImageInput] = useState(emptyGalleryImageInput)
   const [adminColorsOpen, setAdminColorsOpen] = useState(false)
   const [isDatabaseReady, setIsDatabaseReady] = useState(false)
   const [adminAuthResolved, setAdminAuthResolved] = useState(false)
@@ -387,6 +408,9 @@ export default function App() {
           setProducts(bootstrap.products)
           setOrders(bootstrap.orders)
           setReviews(bootstrap.reviews)
+          setDeletedCollections(bootstrap.trash.collections)
+          setDeletedProducts(bootstrap.trash.products)
+          setDeletedReviews(bootstrap.trash.reviews)
           setMessages(bootstrap.messages)
           setShippingRates(bootstrap.shippingRates)
           setShippingForm(bootstrap.shippingRates)
@@ -396,6 +420,9 @@ export default function App() {
           setCollections(bootstrap.collections)
           setProducts(bootstrap.products)
           setReviews(bootstrap.reviews)
+          setDeletedCollections([])
+          setDeletedProducts([])
+          setDeletedReviews([])
           setShippingRates(bootstrap.shippingRates)
         }
         setIsDatabaseReady(true)
@@ -537,6 +564,11 @@ export default function App() {
     [messages]
   )
 
+  const trashItemsCount = useMemo(
+    () => deletedCollections.length + deletedProducts.length + deletedReviews.length,
+    [deletedCollections.length, deletedProducts.length, deletedReviews.length]
+  )
+
   const stockValue = useMemo(
     () => products.reduce((sum, product) => sum + product.price * product.stock, 0),
     [products]
@@ -615,7 +647,8 @@ export default function App() {
   const previewSelection = previewProduct
     ? selectedOptions[previewProduct.id] ?? {
         color: previewProduct.colors[0] ?? '',
-        size: previewProduct.sizes[0] ?? ''
+        size: previewProduct.sizes[0] ?? '',
+        image: previewProduct.image
       }
     : null
   const relatedPreviewProducts = useMemo(() => {
@@ -659,7 +692,8 @@ export default function App() {
   const addToCart = (product: Product) => {
     const selected = selectedOptions[product.id] ?? {
       color: product.colors[0] ?? 'Unique',
-      size: product.sizes[0] ?? 'Unique'
+      size: product.sizes[0] ?? 'Unique',
+      image: product.image
     }
 
     setCart((current) => {
@@ -841,12 +875,15 @@ export default function App() {
       name: productForm.name.trim(),
       description: productForm.description.trim(),
       material: productForm.material.trim(),
-      image: productForm.image.trim() || initialProducts[0].image,
+      images: uniqueImageList([productForm.image, ...productForm.images]),
+      image: productForm.image.trim() || productForm.images[0]?.trim() || initialProducts[0].image,
       collectionId: productForm.collectionId?.trim() || undefined,
       colors: productForm.colors.map((item) => item.trim()).filter(Boolean),
       sizes: productForm.sizes.map((item) => item.trim()).filter(Boolean),
       compareAtPrice: productForm.compareAtPrice || undefined
     }
+
+    normalized.images = uniqueImageList([normalized.image, ...normalized.images])
 
     if (!normalized.name || !normalized.description || !normalized.material || normalized.colors.length === 0) return
 
@@ -870,6 +907,7 @@ export default function App() {
         setEditingProductId(null)
         setProductForm(emptyProductForm)
         setAdminCustomColor('')
+        setAdminGalleryImageInput(emptyGalleryImageInput)
         setAdminColorsOpen(false)
         showToast(editingProductId ? 'Produit mis a jour' : 'Produit ajoute', 'Le catalogue premium a ete synchronise.')
       } catch (error) {
@@ -880,21 +918,63 @@ export default function App() {
   }
 
   const handleProductImageFile = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
+    const files = Array.from(event.target.files ?? [])
+    if (!files.length) return
 
     event.target.value = ''
 
     void (async () => {
       try {
-        const optimizedImage = await optimizeProductImageFile(file)
-        setProductForm((current) => ({ ...current, image: optimizedImage }))
-        showToast('Image ajoutee', 'Le visuel a ete optimise puis charge pour la boutique.')
+        const optimizedImages = await Promise.all(files.map((file) => optimizeProductImageFile(file)))
+        setProductForm((current) => {
+          const nextImages = uniqueImageList([current.image, ...current.images, ...optimizedImages])
+          return {
+            ...current,
+            image: current.image || optimizedImages[0] || '',
+            images: nextImages
+          }
+        })
+        showToast('Images ajoutees', `${optimizedImages.length} visuel(s) ont ete prepares pour la boutique.`)
       } catch (error) {
         console.error(error)
-        showToast('Image indisponible', 'Impossible de preparer cette photo pour le moment.')
+        showToast('Image indisponible', 'Impossible de preparer une ou plusieurs photos pour le moment.')
       }
     })()
+  }
+
+  const addGalleryImageFromUrl = () => {
+    const nextImage = adminGalleryImageInput.trim()
+    if (!nextImage) return
+
+    setProductForm((current) => {
+      const nextImages = uniqueImageList([current.image, ...current.images, nextImage])
+      return {
+        ...current,
+        image: current.image || nextImage,
+        images: nextImages
+      }
+    })
+    setAdminGalleryImageInput(emptyGalleryImageInput)
+  }
+
+  const removeGalleryImage = (imageToRemove: string) => {
+    setProductForm((current) => {
+      const nextImages = current.images.filter((item) => item !== imageToRemove)
+      const nextPrimary = current.image === imageToRemove ? nextImages[0] ?? '' : current.image
+      return {
+        ...current,
+        image: nextPrimary,
+        images: nextImages
+      }
+    })
+  }
+
+  const setPrimaryGalleryImage = (imageToPromote: string) => {
+    setProductForm((current) => ({
+      ...current,
+      image: imageToPromote,
+      images: uniqueImageList([imageToPromote, ...current.images.filter((item) => item !== imageToPromote)])
+    }))
   }
 
   const handleCollectionImageFile = (event: ChangeEvent<HTMLInputElement>) => {
@@ -953,9 +1033,11 @@ export default function App() {
       sizes: product.sizes,
       stock: product.stock,
       isBestSeller: !!product.isBestSeller,
-      image: product.image
+      image: product.image,
+      images: uniqueImageList([product.image, ...(product.images ?? [])])
     })
     setAdminCustomColor('')
+    setAdminGalleryImageInput(emptyGalleryImageInput)
     setAdminColorsOpen(false)
     navigate('/admin/products')
   }
@@ -1043,6 +1125,48 @@ export default function App() {
       setShowAdminPassword(false)
       showToast('Session fermee', 'Vous avez ete deconnecte du back-office.')
       navigate('/admin/login', { replace: true })
+    })()
+  }
+
+  const restoreDeletedCollection = (collection: Collection) => {
+    void (async () => {
+      try {
+        const restored = isDatabaseReady ? await restoreCollectionRequest(collection.id) : { ...collection, deletedAt: undefined }
+        setDeletedCollections((current) => current.filter((item) => item.id !== collection.id))
+        setCollections((current) => [restored, ...current])
+        showToast('Collection restauree', 'La tendance est de nouveau disponible dans l administration.')
+      } catch (error) {
+        console.error(error)
+        showToast('Restauration impossible', 'La collection n a pas pu etre restauree.')
+      }
+    })()
+  }
+
+  const restoreDeletedProduct = (product: Product) => {
+    void (async () => {
+      try {
+        const restored = isDatabaseReady ? await restoreProductRequest(product.id) : { ...product, deletedAt: undefined }
+        setDeletedProducts((current) => current.filter((item) => item.id !== product.id))
+        setProducts((current) => [restored, ...current])
+        showToast('Produit restaure', 'Le produit est revenu dans le catalogue actif.')
+      } catch (error) {
+        console.error(error)
+        showToast('Restauration impossible', 'Le produit n a pas pu etre restaure.')
+      }
+    })()
+  }
+
+  const restoreDeletedReview = (review: Review) => {
+    void (async () => {
+      try {
+        const restored = isDatabaseReady ? await restoreReviewRequest(review.id) : { ...review, deletedAt: undefined }
+        setDeletedReviews((current) => current.filter((item) => item.id !== review.id))
+        setReviews((current) => [restored, ...current])
+        showToast('Avis restaure', 'Le temoignage est de nouveau visible dans la moderation.')
+      } catch (error) {
+        console.error(error)
+        showToast('Restauration impossible', 'L avis n a pas pu etre restaure.')
+      }
     })()
   }
 
@@ -1271,6 +1395,8 @@ export default function App() {
                         ? pendingOrdersCount
                         : item.path === '/admin/messages'
                           ? unreadMessagesCount
+                          : item.path === '/admin/trash'
+                            ? trashItemsCount
                           : 0
 
                     return (
@@ -1557,17 +1683,24 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <label className="form-label">IMAGE DU PRODUIT</label>
+                    <label className="form-label">IMAGE PRINCIPALE</label>
                     <input
                       value={productForm.image}
-                      onChange={(event) => setProductForm((current) => ({ ...current, image: event.target.value }))}
-                      placeholder="Collez l'URL complete de l'image"
+                      onChange={(event) =>
+                        setProductForm((current) => ({
+                          ...current,
+                          image: event.target.value,
+                          images: uniqueImageList([event.target.value, ...current.images])
+                        }))
+                      }
+                      placeholder="Collez l'URL complete de l'image principale"
                       className="field-input"
                     />
                     <input
                       ref={galleryInputRef}
                       type="file"
                       accept="image/*"
+                      multiple
                       className="hidden"
                       onChange={handleProductImageFile}
                     />
@@ -1592,11 +1725,11 @@ export default function App() {
                         className="secondary-button"
                         onClick={() => galleryInputRef.current?.click()}
                       >
-                        Choisir une photo
+                        Importer plusieurs photos
                       </button>
                     </div>
                     <p className="admin-field-help">
-                      Utilisez l&apos;appareil photo si disponible, ou selectionnez une image depuis la galerie.
+                      Choisissez une image principale puis ajoutez autant de visuels supplementaires que necessaire.
                     </p>
                     {productForm.image ? (
                       <div className="admin-image-preview">
@@ -1608,6 +1741,59 @@ export default function App() {
                         />
                       </div>
                     ) : null}
+                    <div className="mt-4 grid gap-3">
+                      <div className="admin-custom-color-row">
+                        <input
+                          value={adminGalleryImageInput}
+                          onChange={(event) => setAdminGalleryImageInput(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              event.preventDefault()
+                              addGalleryImageFromUrl()
+                            }
+                          }}
+                          placeholder="Ajouter une URL d'image supplementaire"
+                          className="field-input"
+                        />
+                        <button type="button" onClick={addGalleryImageFromUrl} className="secondary-button">
+                          <Plus size={16} />
+                          Ajouter
+                        </button>
+                      </div>
+                      {productForm.images.length ? (
+                        <div className="grid gap-3">
+                          <p className="admin-field-help">Galerie du produit ({productForm.images.length} image(s)).</p>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            {productForm.images.map((image, index) => (
+                              <div key={`${image}-${index}`} className="rounded-[18px] border border-[#dfd3e4] bg-[#fffdfd] p-3">
+                                <img
+                                  src={image}
+                                  alt={`Visuel produit ${index + 1}`}
+                                  className="h-28 w-full rounded-[14px] object-cover"
+                                  onError={(event) => applyImageFallback(event, productFallbackImage(productForm.category))}
+                                />
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                  <button
+                                    type="button"
+                                    className="secondary-button"
+                                    onClick={() => setPrimaryGalleryImage(image)}
+                                  >
+                                    {productForm.image === image ? 'Image principale' : 'Definir en principale'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="secondary-button"
+                                    onClick={() => removeGalleryImage(image)}
+                                  >
+                                    Retirer
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
 
@@ -1766,10 +1952,12 @@ export default function App() {
                         onClick={() => {
                           void (async () => {
                             try {
-                              if (isDatabaseReady) {
-                                await deleteProductRequest(product.id)
-                              }
+                              const deletedProduct = isDatabaseReady
+                                ? await deleteProductRequest(product.id)
+                                : { ...product, deletedAt: new Date().toISOString() }
                               setProducts((current) => current.filter((item) => item.id !== product.id))
+                              setDeletedProducts((current) => [deletedProduct, ...current])
+                              showToast('Produit deplace', 'Le produit a ete envoye dans la corbeille.')
                             } catch (error) {
                               console.error(error)
                               showToast('Suppression impossible', 'Le produit n a pas pu etre retire.')
@@ -1778,7 +1966,7 @@ export default function App() {
                         }}
                         className="secondary-button"
                       >
-                        Retirer
+                        Corbeille
                       </button>
                     </div>
                   </div>
@@ -1925,15 +2113,12 @@ export default function App() {
                               onClick={() => {
                                 void (async () => {
                                   try {
-                                    if (isDatabaseReady) {
-                                      await deleteCollectionRequest(collection.id)
-                                    }
+                                    const deletedCollection = isDatabaseReady
+                                      ? await deleteCollectionRequest(collection.id)
+                                      : { ...collection, deletedAt: new Date().toISOString() }
                                     setCollections((current) => current.filter((item) => item.id !== collection.id))
-                                    setProducts((current) =>
-                                      current.map((product) =>
-                                        product.collectionId === collection.id ? { ...product, collectionId: undefined } : product
-                                      )
-                                    )
+                                    setDeletedCollections((current) => [deletedCollection, ...current])
+                                    showToast('Collection deplacee', 'La tendance a ete envoyee dans la corbeille.')
                                   } catch (error) {
                                     console.error(error)
                                     showToast('Suppression impossible', 'La collection n a pas pu etre retiree.')
@@ -1942,7 +2127,7 @@ export default function App() {
                               }}
                               className="secondary-button"
                             >
-                              Supprimer
+                              Corbeille
                             </button>
                           </div>
                         </div>
@@ -1976,10 +2161,12 @@ export default function App() {
                         onClick={() => {
                           void (async () => {
                             try {
-                              if (isDatabaseReady) {
-                                await deleteReviewRequest(review.id)
-                              }
+                              const deletedReview = isDatabaseReady
+                                ? await deleteReviewRequest(review.id)
+                                : { ...review, deletedAt: new Date().toISOString() }
                               setReviews((current) => current.filter((item) => item.id !== review.id))
+                              setDeletedReviews((current) => [deletedReview, ...current])
+                              showToast('Avis deplace', 'L avis a ete envoye dans la corbeille.')
                             } catch (error) {
                               console.error(error)
                               showToast('Suppression impossible', 'L avis n a pas pu etre supprime.')
@@ -2044,6 +2231,156 @@ export default function App() {
                   </div>
                 ))}
               </div>
+                </div>
+              ) : null}
+
+              {adminPath === '/admin/trash' ? (
+                <div className="grid gap-6">
+                  <div className="panel-card p-7">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <div className="mb-3 flex items-center gap-3">
+                          <Trash2 size={18} className="text-[#f04cb3]" />
+                          <h2 className="text-[22px] font-semibold text-[#241f2b]">Elements supprimes</h2>
+                        </div>
+                        <p className="text-sm leading-7 text-[#6f657a]">
+                          Les suppressions sont maintenant envoyees ici. Vous pouvez restaurer un article, une tendance ou un avis a tout moment.
+                        </p>
+                      </div>
+                      <div className="rounded-[18px] border border-[#eadceb] bg-[#fffdfd] px-4 py-3 text-right">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a7f95]">Total</p>
+                        <p className="mt-2 text-2xl font-semibold text-[#241f2b]">{trashItemsCount}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="panel-card p-7">
+                    <div className="mb-5 flex items-center justify-between gap-4">
+                      <h3 className="text-[20px] font-semibold text-[#241f2b]">Produits</h3>
+                      <span className="rounded-full bg-[#ef4cae]/10 px-3 py-1 text-xs font-semibold text-[#f04cb3]">
+                        {deletedProducts.length}
+                      </span>
+                    </div>
+                    <div className="space-y-3">
+                      {deletedProducts.length ? (
+                        deletedProducts.map((product) => (
+                          <div
+                            key={product.id}
+                            className="flex flex-col gap-4 rounded-[22px] border border-[#dfd3e4] bg-[#fffdfd] p-4 lg:flex-row lg:items-center lg:justify-between"
+                          >
+                            <div className="flex items-center gap-4">
+                              <img
+                                src={product.image}
+                                alt={product.name}
+                                className="h-14 w-14 rounded-[16px] object-cover"
+                                onError={(event) => applyImageFallback(event, productFallbackImage(product.category))}
+                              />
+                              <div>
+                                <h4 className="font-semibold text-[#241f2b]">{product.name}</h4>
+                                <p className="mt-1 text-sm text-[#8a7f95]">
+                                  {product.category} • {currency.format(product.price)}
+                                </p>
+                                {product.deletedAt ? (
+                                  <p className="mt-1 text-xs text-[#9a8ea5]">
+                                    Supprime le {datetime.format(new Date(product.deletedAt))}
+                                  </p>
+                                ) : null}
+                              </div>
+                            </div>
+                            <button type="button" onClick={() => restoreDeletedProduct(product)} className="primary-button px-5">
+                              Restaurer
+                            </button>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="rounded-[20px] border border-dashed border-[#dfd3e4] bg-[#fffdfd] px-5 py-6 text-sm text-[#7a6f86]">
+                          Aucun produit dans la corbeille.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="panel-card p-7">
+                    <div className="mb-5 flex items-center justify-between gap-4">
+                      <h3 className="text-[20px] font-semibold text-[#241f2b]">Collections</h3>
+                      <span className="rounded-full bg-[#ef4cae]/10 px-3 py-1 text-xs font-semibold text-[#f04cb3]">
+                        {deletedCollections.length}
+                      </span>
+                    </div>
+                    <div className="space-y-3">
+                      {deletedCollections.length ? (
+                        deletedCollections.map((collection) => (
+                          <div
+                            key={collection.id}
+                            className="flex flex-col gap-4 rounded-[22px] border border-[#dfd3e4] bg-[#fffdfd] p-4 lg:flex-row lg:items-center lg:justify-between"
+                          >
+                            <div className="flex items-center gap-4">
+                              <img
+                                src={collection.image}
+                                alt={collection.name}
+                                className="h-14 w-14 rounded-[16px] object-cover"
+                                onError={(event) => applyImageFallback(event, collectionFallbackImage)}
+                              />
+                              <div>
+                                <h4 className="font-semibold text-[#241f2b]">{collection.name}</h4>
+                                <p className="mt-1 text-sm text-[#8a7f95]">{collection.description}</p>
+                                {collection.deletedAt ? (
+                                  <p className="mt-1 text-xs text-[#9a8ea5]">
+                                    Supprime le {datetime.format(new Date(collection.deletedAt))}
+                                  </p>
+                                ) : null}
+                              </div>
+                            </div>
+                            <button type="button" onClick={() => restoreDeletedCollection(collection)} className="primary-button px-5">
+                              Restaurer
+                            </button>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="rounded-[20px] border border-dashed border-[#dfd3e4] bg-[#fffdfd] px-5 py-6 text-sm text-[#7a6f86]">
+                          Aucune collection dans la corbeille.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="panel-card p-7">
+                    <div className="mb-5 flex items-center justify-between gap-4">
+                      <h3 className="text-[20px] font-semibold text-[#241f2b]">Avis</h3>
+                      <span className="rounded-full bg-[#ef4cae]/10 px-3 py-1 text-xs font-semibold text-[#f04cb3]">
+                        {deletedReviews.length}
+                      </span>
+                    </div>
+                    <div className="space-y-3">
+                      {deletedReviews.length ? (
+                        deletedReviews.map((review) => (
+                          <div key={review.id} className="rounded-[22px] border border-[#dfd3e4] bg-[#fffdfd] p-5">
+                            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                              <div>
+                                <h4 className="font-semibold text-[#241f2b]">{review.title}</h4>
+                                <p className="mt-1 text-sm text-[#8a7f95]">
+                                  {review.author} • {review.rating}/5
+                                </p>
+                                <p className="mt-3 text-sm leading-7 text-[#6f657a]">{review.body}</p>
+                                {review.deletedAt ? (
+                                  <p className="mt-3 text-xs text-[#9a8ea5]">
+                                    Supprime le {datetime.format(new Date(review.deletedAt))}
+                                  </p>
+                                ) : null}
+                              </div>
+                              <button type="button" onClick={() => restoreDeletedReview(review)} className="primary-button px-5">
+                                Restaurer
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="rounded-[20px] border border-dashed border-[#dfd3e4] bg-[#fffdfd] px-5 py-6 text-sm text-[#7a6f86]">
+                          Aucun avis dans la corbeille.
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 </div>
               ) : null}
 
@@ -2442,7 +2779,8 @@ export default function App() {
             {filteredProducts.map((product, index) => {
               const selection = selectedOptions[product.id] ?? {
                 color: product.colors[0] ?? '',
-                size: product.sizes[0] ?? ''
+                size: product.sizes[0] ?? '',
+                image: product.image
               }
 
               return (
@@ -2733,9 +3071,10 @@ export default function App() {
           <div className="grid gap-6 md:grid-cols-[0.9fr_1.1fr]">
             <div className="premium-preview-media">
               <motion.img
-                src={previewProduct.image}
+                src={previewSelection?.image ?? previewProduct.image}
                 alt={previewProduct.name}
                 className="premium-preview-image"
+                onError={(event) => applyImageFallback(event, productFallbackImage(previewProduct.category))}
                 whileHover={{ scale: 1.08 }}
                 transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
               />
@@ -2752,6 +3091,33 @@ export default function App() {
               </div>
 
               <p className="mt-5 text-[15px] leading-7 text-[#6f657a]">{previewProduct.description}</p>
+
+              {previewProduct.images.length > 1 ? (
+                <div className="mt-5 flex flex-wrap gap-3">
+                  {previewProduct.images.map((image, index) => (
+                    <button
+                      key={`${image}-${index}`}
+                      type="button"
+                      onClick={() =>
+                        setSelectedOptions((current) => ({
+                          ...current,
+                          [previewProduct.id]: { ...previewSelection!, image }
+                        }))
+                      }
+                      className={`overflow-hidden rounded-[18px] border ${
+                        (previewSelection?.image ?? previewProduct.image) === image ? 'border-[#f04cb3]' : 'border-[#dfd3e4]'
+                      }`}
+                    >
+                      <img
+                        src={image}
+                        alt={`${previewProduct.name} visuel ${index + 1}`}
+                        className="h-20 w-20 object-cover"
+                        onError={(event) => applyImageFallback(event, productFallbackImage(previewProduct.category))}
+                      />
+                    </button>
+                  ))}
+                </div>
+              ) : null}
 
               <div className="mt-5 grid gap-4 sm:grid-cols-2">
                 <div className="rounded-[20px] border border-[#dfd3e4] bg-[#fffdfd] p-4">
