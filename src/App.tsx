@@ -529,8 +529,23 @@ export default function App() {
     setOrderForm((current) => ({ ...current, commune: communeOptions[0] }))
   }, [communeOptions, orderForm.commune])
 
+  const activeCollections = useMemo(
+    () => collections.filter((collection) => !collection.deletedAt),
+    [collections]
+  )
+
+  const activeProducts = useMemo(
+    () =>
+      products.filter(
+        (product) => !product.deletedAt && (!product.collectionId || activeCollections.some((collection) => collection.id === product.collectionId))
+      ),
+    [activeCollections, products]
+  )
+
+  const activeReviews = useMemo(() => reviews.filter((review) => !review.deletedAt), [reviews])
+
   const filteredProducts = useMemo(() => {
-    return products.filter((product) => {
+    return activeProducts.filter((product) => {
       const categoryMatch = category === 'Tous' || product.category === category
       const searchMatch =
         search.trim() === '' ||
@@ -538,16 +553,16 @@ export default function App() {
 
       return categoryMatch && searchMatch
     })
-  }, [category, products, search])
+  }, [activeProducts, category, search])
 
   const subtotal = useMemo(() => cart.reduce((sum, item) => sum + item.price * item.quantity, 0), [cart])
   const shipping = shippingRates[orderForm.commune] ?? 0
   const total = subtotal + shipping
 
   const averageRating = useMemo(() => {
-    if (!reviews.length) return 0
-    return reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
-  }, [reviews])
+    if (!activeReviews.length) return 0
+    return activeReviews.reduce((sum, review) => sum + review.rating, 0) / activeReviews.length
+  }, [activeReviews])
 
   const pendingOrdersCount = useMemo(
     () => orders.filter((order) => order.status === 'En attente').length,
@@ -570,8 +585,8 @@ export default function App() {
   )
 
   const stockValue = useMemo(
-    () => products.reduce((sum, product) => sum + product.price * product.stock, 0),
-    [products]
+    () => activeProducts.reduce((sum, product) => sum + product.price * product.stock, 0),
+    [activeProducts]
   )
 
   const dashboardStats = useMemo(() => {
@@ -599,11 +614,11 @@ export default function App() {
       {
         label: 'Note globale',
         value: `${averageRating.toFixed(1)} /5`,
-        helper: `${reviews.length} temoignages verifies`,
+        helper: `${activeReviews.length} temoignages verifies`,
         accent: 'pink' as const
       }
     ]
-  }, [averageRating, deliveredOrdersCount, orders, pendingOrdersCount, products, reviews.length, stockValue])
+  }, [activeReviews.length, averageRating, deliveredOrdersCount, orders, pendingOrdersCount, products, stockValue])
 
   const recentOrders = useMemo(() => {
     return [...orders]
@@ -616,33 +631,33 @@ export default function App() {
   }, [orderStatusFilter, orders])
 
   const visibleReviews = useMemo(() => {
-    return reviewFilter === 0 ? reviews : reviews.filter((review) => review.rating === reviewFilter)
-  }, [reviewFilter, reviews])
+    return reviewFilter === 0 ? activeReviews : activeReviews.filter((review) => review.rating === reviewFilter)
+  }, [activeReviews, reviewFilter])
 
   const categoryHighlights = useMemo(() => {
     return [
-      products.find((item) => item.category === 'Vetements'),
-      products.find((item) => item.category === 'Sacs'),
-      products.find((item) => item.category === 'Parfums'),
-      products.find((item) => item.category === 'Accessoires')
+      activeProducts.find((item) => item.category === 'Vetements'),
+      activeProducts.find((item) => item.category === 'Sacs'),
+      activeProducts.find((item) => item.category === 'Parfums'),
+      activeProducts.find((item) => item.category === 'Accessoires')
     ].filter(Boolean) as Product[]
-  }, [products])
+  }, [activeProducts])
 
   const featuredCollections = useMemo(() => {
-    return collections.filter((collection) => collection.isFeatured).slice(0, 3)
-  }, [collections])
+    return activeCollections.filter((collection) => collection.isFeatured).slice(0, 3)
+  }, [activeCollections])
 
   const collectionMap = useMemo(
-    () => collections.reduce<Record<string, Collection>>((accumulator, collection) => {
+    () => activeCollections.reduce<Record<string, Collection>>((accumulator, collection) => {
       accumulator[collection.id] = collection
       return accumulator
     }, {}),
-    [collections]
+    [activeCollections]
   )
 
   const previewProduct = useMemo(
-    () => products.find((product) => product.id === previewProductId) ?? null,
-    [previewProductId, products]
+    () => activeProducts.find((product) => product.id === previewProductId) ?? null,
+    [activeProducts, previewProductId]
   )
   const previewSelection = previewProduct
     ? selectedOptions[previewProduct.id] ?? {
@@ -654,15 +669,20 @@ export default function App() {
   const relatedPreviewProducts = useMemo(() => {
     if (!previewProduct) return []
 
-    const differentCategory = products.filter(
+    const differentCategory = activeProducts.filter(
       (product) => product.id !== previewProduct.id && product.category !== previewProduct.category
     )
-    const sameCategory = products.filter(
+    const sameCategory = activeProducts.filter(
       (product) => product.id !== previewProduct.id && product.category === previewProduct.category
     )
 
     return [...differentCategory, ...sameCategory].slice(0, 3)
-  }, [previewProduct, products])
+  }, [activeProducts, previewProduct])
+
+  useEffect(() => {
+    const activeProductIds = new Set(activeProducts.map((product) => product.id))
+    setCart((current) => current.filter((item) => activeProductIds.has(item.productId)))
+  }, [activeProducts, setCart])
 
   const adminPath: AdminPath = isProtectedAdminPath(path) ? path : '/admin/dashboard'
   const adminMeta = adminHeading(adminPath)
