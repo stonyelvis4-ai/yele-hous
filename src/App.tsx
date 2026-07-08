@@ -101,6 +101,9 @@ const protectedAdminPaths = ['/admin/dashboard', '/admin/orders', '/admin/produc
 type PublicNavId = (typeof publicNavItems)[number]['id']
 type AdminPath = (typeof protectedAdminPaths)[number]
 
+const MAX_PRODUCT_IMAGE_DIMENSION = 1600
+const MAX_PRODUCT_IMAGE_BYTES = 1_600_000
+
 const emptyProductForm: Omit<Product, 'id'> = {
   name: '',
   category: 'Vetements',
@@ -128,6 +131,66 @@ const emptyCollectionForm: Omit<Collection, 'id'> = {
 const emptyAdminLoginForm = { email: '', password: '' }
 const emptyToast = { title: '', message: '' }
 const emptyPasswordForm = { currentPassword: '', nextPassword: '', confirmPassword: '' }
+
+function dataUrlByteSize(dataUrl: string) {
+  const base64 = dataUrl.split(',')[1] ?? ''
+  const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0
+  return Math.ceil((base64.length * 3) / 4) - padding
+}
+
+function fileToDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : ''
+      if (!result) {
+        reject(new Error('Could not read the selected file.'))
+        return
+      }
+      resolve(result)
+    }
+    reader.onerror = () => reject(reader.error ?? new Error('Could not read the selected file.'))
+    reader.readAsDataURL(file)
+  })
+}
+
+function loadImageElement(source: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image()
+    image.onload = () => resolve(image)
+    image.onerror = () => reject(new Error('Could not decode the selected image.'))
+    image.src = source
+  })
+}
+
+async function optimizeProductImageFile(file: File) {
+  const originalDataUrl = await fileToDataUrl(file)
+  const image = await loadImageElement(originalDataUrl)
+  const scale = Math.min(1, MAX_PRODUCT_IMAGE_DIMENSION / Math.max(image.width, image.height))
+  const width = Math.max(1, Math.round(image.width * scale))
+  const height = Math.max(1, Math.round(image.height * scale))
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const context = canvas.getContext('2d')
+
+  if (!context) return originalDataUrl
+
+  context.drawImage(image, 0, 0, width, height)
+
+  const qualities = [0.86, 0.76, 0.66, 0.56]
+  let candidate = canvas.toDataURL('image/jpeg', qualities[0])
+
+  for (const quality of qualities) {
+    const nextCandidate = canvas.toDataURL('image/jpeg', quality)
+    candidate = nextCandidate
+    if (dataUrlByteSize(nextCandidate) <= MAX_PRODUCT_IMAGE_BYTES) {
+      return nextCandidate
+    }
+  }
+
+  return candidate
+}
 
 function scoreForProduct(product: Product) {
   const map: Record<string, number> = {
@@ -811,15 +874,18 @@ export default function App() {
     const file = event.target.files?.[0]
     if (!file) return
 
-    const reader = new FileReader()
-    reader.onload = () => {
-      const result = typeof reader.result === 'string' ? reader.result : ''
-      if (!result) return
-      setProductForm((current) => ({ ...current, image: result }))
-      showToast('Image ajoutee', 'Le visuel du produit a bien ete charge.')
-    }
-    reader.readAsDataURL(file)
     event.target.value = ''
+
+    void (async () => {
+      try {
+        const optimizedImage = await optimizeProductImageFile(file)
+        setProductForm((current) => ({ ...current, image: optimizedImage }))
+        showToast('Image ajoutee', 'Le visuel a ete optimise puis charge pour la boutique.')
+      } catch (error) {
+        console.error(error)
+        showToast('Image indisponible', 'Impossible de preparer cette photo pour le moment.')
+      }
+    })()
   }
 
   const toggleAdminColor = (color: string) => {
