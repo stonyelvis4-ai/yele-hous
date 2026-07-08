@@ -328,14 +328,14 @@ function adminHeading(path: AdminPath) {
 }
 
 export default function App() {
-  const [collections, setCollections] = useState<Collection[]>(initialCollections)
-  const [products, setProducts] = useState<Product[]>(initialProducts)
-  const [orders, setOrders] = useState<Order[]>(initialOrders)
-  const [reviews, setReviews] = useState<Review[]>(initialReviews)
+  const [collections, setCollections] = useState<Collection[]>([])
+  const [products, setProducts] = useState<Product[]>([])
+  const [orders, setOrders] = useState<Order[]>([])
+  const [reviews, setReviews] = useState<Review[]>([])
   const [deletedCollections, setDeletedCollections] = useState<Collection[]>([])
   const [deletedProducts, setDeletedProducts] = useState<Product[]>([])
   const [deletedReviews, setDeletedReviews] = useState<Review[]>([])
-  const [messages, setMessages] = useState<ContactMessage[]>(initialMessages)
+  const [messages, setMessages] = useState<ContactMessage[]>([])
   const [shippingRates, setShippingRates] = useState<ShippingRates>(shippingByCommune)
   const [cart, setCart] = useLocalStorage<CartItem[]>('yele-cart', [])
 
@@ -430,6 +430,16 @@ export default function App() {
         console.error(error)
         if (ignore) return
         setIsDatabaseReady(false)
+        setCollections(initialCollections)
+        setProducts(initialProducts)
+        setOrders(initialOrders)
+        setReviews(initialReviews)
+        setDeletedCollections([])
+        setDeletedProducts([])
+        setDeletedReviews([])
+        setMessages(initialMessages)
+        setShippingRates(shippingByCommune)
+        setShippingForm(shippingByCommune)
         showToast('Mode local actif', 'La base ou la session admin n est pas joignable. L interface garde les donnees de demo.')
       }
     }
