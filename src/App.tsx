@@ -28,7 +28,7 @@ import {
   User,
   X
 } from 'lucide-react'
-import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { ChangeEvent, FormEvent, SyntheticEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatedBadge } from './components/motion/AnimatedBadge'
 import { CollectionCardMotion } from './components/motion/CollectionCardMotion'
 import { CartDrawer } from './components/motion/CartDrawer'
@@ -60,6 +60,7 @@ import { initialCollections, initialMessages, initialOrders, initialProducts, in
 import { useLocalStorage } from './hooks/useLocalStorage'
 import { getAdminSession, isAdminAuthenticated, loginAdmin, logoutAdmin, syncAdminSession } from './lib/auth'
 import { CartItem, Category, Collection, ContactMessage, Order, OrderStatus, Product, Review, ShippingRates } from './types'
+import { collectionFallbackImage, productFallbackImage } from './lib/imageFallbacks'
 import { currency, datetime } from './utils/format'
 import { buildWhatsAppUrl } from './utils/whatsapp'
 
@@ -252,6 +253,12 @@ function categoryCopy(category: Category) {
     title: 'Bijoux & Accessoires',
     body: 'Creoles torsadees massives et lunettes Cat-Eye glamour.'
   }
+}
+
+function applyImageFallback(event: SyntheticEvent<HTMLImageElement>, fallbackSrc: string) {
+  const target = event.currentTarget
+  if (target.src === fallbackSrc) return
+  target.src = fallbackSrc
 }
 
 function currentPathname() {
@@ -1573,7 +1580,12 @@ export default function App() {
                     </p>
                     {productForm.image ? (
                       <div className="admin-image-preview">
-                        <img src={productForm.image} alt="Apercu du produit" className="admin-image-preview-media" />
+                        <img
+                          src={productForm.image}
+                          alt="Apercu du produit"
+                          className="admin-image-preview-media"
+                          onError={(event) => applyImageFallback(event, productFallbackImage(productForm.category))}
+                        />
                       </div>
                     ) : null}
                   </div>
@@ -1707,7 +1719,12 @@ export default function App() {
                     className="flex flex-col gap-4 rounded-[22px] border border-[#dfd3e4] bg-[#fffdfd] p-4 lg:flex-row lg:items-center lg:justify-between"
                   >
                     <div className="flex items-center gap-4">
-                      <img src={product.image} alt={product.name} className="h-14 w-14 rounded-[16px] object-cover" />
+                      <img
+                        src={product.image}
+                        alt={product.name}
+                        className="h-14 w-14 rounded-[16px] object-cover"
+                        onError={(event) => applyImageFallback(event, productFallbackImage(product.category))}
+                      />
                       <div>
                         <h3 className="font-semibold text-[#241f2b]">{product.name}</h3>
                         <p className="mt-1 text-sm text-[#8a7f95]">
@@ -1815,7 +1832,12 @@ export default function App() {
                   {collections.map((collection) => (
                     <div key={collection.id} className="rounded-[22px] border border-[#dfd3e4] bg-[#fffdfd] p-4">
                       <div className="flex items-start gap-4">
-                        <img src={collection.image} alt={collection.name} className="h-16 w-16 rounded-[16px] object-cover" />
+                        <img
+                          src={collection.image}
+                          alt={collection.name}
+                          className="h-16 w-16 rounded-[16px] object-cover"
+                          onError={(event) => applyImageFallback(event, collectionFallbackImage)}
+                        />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between gap-3">
                             <h3 className="font-semibold text-[#241f2b]">{collection.name}</h3>
@@ -2291,7 +2313,12 @@ export default function App() {
 
               return (
                 <article key={product.id} className="feature-card">
-                  <img src={product.image} alt={product.name} className="feature-card-image" />
+                  <img
+                    src={product.image}
+                    alt={product.name}
+                    className="feature-card-image"
+                    onError={(event) => applyImageFallback(event, productFallbackImage(product.category))}
+                  />
                   <div className="feature-card-body">
                     <p className="feature-kicker">{copy.kicker}</p>
                     <div className="flex items-start justify-between gap-4">
@@ -2749,7 +2776,12 @@ export default function App() {
                         whileHover={{ y: -4, scale: 1.01 }}
                         whileTap={{ scale: 0.98 }}
                       >
-                        <img src={product.image} alt={product.name} className="look-complete-image" />
+                        <img
+                          src={product.image}
+                          alt={product.name}
+                          className="look-complete-image"
+                          onError={(event) => applyImageFallback(event, productFallbackImage(product.category))}
+                        />
                         <div className="min-w-0 flex-1 text-left">
                           <p className="text-[11px] font-semibold tracking-[0.16em] text-[#f04cb3]">{categoryLabel(product.category)}</p>
                           <h4 className="mt-1 truncate text-[15px] font-semibold text-[#241f2b]">{product.name}</h4>
@@ -2801,7 +2833,12 @@ export default function App() {
               <div className="space-y-3">
                 {cart.map((item) => (
                   <div key={`${item.productId}-${item.color}-${item.size}`} className="cart-line-item">
-                    <img src={item.image} alt={item.name} className="cart-line-image" />
+                    <img
+                      src={item.image}
+                      alt={item.name}
+                      className="cart-line-image"
+                      onError={(event) => applyImageFallback(event, productFallbackImage())}
+                    />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">

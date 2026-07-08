@@ -1,7 +1,9 @@
 import type { Transition, Variants } from 'motion/react'
 import { motion } from 'motion/react'
 import { ArrowRight } from 'lucide-react'
+import { useState } from 'react'
 import { premiumEase } from '../../lib/motion'
+import { collectionFallbackImage } from '../../lib/imageFallbacks'
 
 interface CollectionCardMotionProps {
   title: string
@@ -63,6 +65,8 @@ const collectionTransition: Transition = {
 }
 
 export function CollectionCardMotion({ title, copy, image }: CollectionCardMotionProps) {
+  const [imageSrc, setImageSrc] = useState(image || collectionFallbackImage)
+
   return (
     <motion.article
       className="feature-card relative isolate overflow-hidden"
@@ -82,9 +86,10 @@ export function CollectionCardMotion({ title, copy, image }: CollectionCardMotio
 
       <div className="relative overflow-hidden">
         <motion.img
-          src={image}
+          src={imageSrc}
           alt={title}
           className="feature-card-image"
+          onError={() => setImageSrc(collectionFallbackImage)}
           variants={collectionImageVariants}
           transition={collectionTransition}
         />

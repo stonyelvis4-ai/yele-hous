@@ -1,6 +1,8 @@
 import { motion } from 'motion/react'
+import { useState } from 'react'
 import { AnimatedBadge } from './AnimatedBadge'
 import { productCardGlowVariants, productCardImageVariants, productCardVariants, subtleHoverTransition } from '../../lib/motion'
+import { productFallbackImage } from '../../lib/imageFallbacks'
 
 interface ProductCardMotionProps {
   badge: string
@@ -41,6 +43,8 @@ export function ProductCardMotion({
   onPreview,
   onAdd
 }: ProductCardMotionProps) {
+  const [imageSrc, setImageSrc] = useState(image || productFallbackImage(category))
+
   return (
     <motion.article
       className="product-card relative isolate overflow-hidden"
@@ -58,7 +62,14 @@ export function ProductCardMotion({
       />
 
       <button type="button" onClick={onPreview} className="relative block w-full overflow-hidden text-left">
-        <motion.img src={image} alt={title} className="product-image" variants={productCardImageVariants} transition={subtleHoverTransition} />
+        <motion.img
+          src={imageSrc}
+          alt={title}
+          className="product-image"
+          onError={() => setImageSrc(productFallbackImage(category))}
+          variants={productCardImageVariants}
+          transition={subtleHoverTransition}
+        />
         <div className="absolute left-4 top-4">
           <AnimatedBadge>{badge}</AnimatedBadge>
         </div>
