@@ -138,6 +138,32 @@ const emptyAdminLoginForm = { email: '', password: '' }
 const emptyToast = { title: '', message: '' }
 const emptyPasswordForm = { currentPassword: '', nextPassword: '', confirmPassword: '' }
 const emptyGalleryImageInput = ''
+const PUBLIC_BOOTSTRAP_CACHE_KEY = 'yele-public-bootstrap-cache-v1'
+
+type PublicBootstrapCache = {
+  collections: Collection[]
+  products: Product[]
+  reviews: Review[]
+  shippingRates: ShippingRates
+}
+
+function readPublicBootstrapCache(): PublicBootstrapCache | null {
+  if (typeof window === 'undefined') return null
+
+  const stored = window.localStorage.getItem(PUBLIC_BOOTSTRAP_CACHE_KEY)
+  if (!stored) return null
+
+  try {
+    return JSON.parse(stored) as PublicBootstrapCache
+  } catch {
+    return null
+  }
+}
+
+function writePublicBootstrapCache(value: PublicBootstrapCache) {
+  if (typeof window === 'undefined') return
+  window.localStorage.setItem(PUBLIC_BOOTSTRAP_CACHE_KEY, JSON.stringify(value))
+}
 
 function dataUrlByteSize(dataUrl: string) {
   const base64 = dataUrl.split(',')[1] ?? ''
@@ -328,15 +354,16 @@ function adminHeading(path: AdminPath) {
 }
 
 export default function App() {
-  const [collections, setCollections] = useState<Collection[]>([])
-  const [products, setProducts] = useState<Product[]>([])
+  const cachedPublicBootstrap = readPublicBootstrapCache()
+  const [collections, setCollections] = useState<Collection[]>(cachedPublicBootstrap?.collections ?? [])
+  const [products, setProducts] = useState<Product[]>(cachedPublicBootstrap?.products ?? [])
   const [orders, setOrders] = useState<Order[]>([])
-  const [reviews, setReviews] = useState<Review[]>([])
+  const [reviews, setReviews] = useState<Review[]>(cachedPublicBootstrap?.reviews ?? [])
   const [deletedCollections, setDeletedCollections] = useState<Collection[]>([])
   const [deletedProducts, setDeletedProducts] = useState<Product[]>([])
   const [deletedReviews, setDeletedReviews] = useState<Review[]>([])
   const [messages, setMessages] = useState<ContactMessage[]>([])
-  const [shippingRates, setShippingRates] = useState<ShippingRates>(shippingByCommune)
+  const [shippingRates, setShippingRates] = useState<ShippingRates>(cachedPublicBootstrap?.shippingRates ?? shippingByCommune)
   const [cart, setCart] = useLocalStorage<CartItem[]>('yele-cart', [])
 
   const [path, setPath] = useState(currentPathname)
@@ -382,6 +409,7 @@ export default function App() {
   const [adminColorsOpen, setAdminColorsOpen] = useState(false)
   const [isDatabaseReady, setIsDatabaseReady] = useState(false)
   const [adminAuthResolved, setAdminAuthResolved] = useState(false)
+  const [isPublicBootstrapResolved, setIsPublicBootstrapResolved] = useState(Boolean(cachedPublicBootstrap))
   const galleryInputRef = useRef<HTMLInputElement | null>(null)
   const cameraInputRef = useRef<HTMLInputElement | null>(null)
   const collectionGalleryInputRef = useRef<HTMLInputElement | null>(null)
@@ -424,22 +452,44 @@ export default function App() {
           setDeletedProducts([])
           setDeletedReviews([])
           setShippingRates(bootstrap.shippingRates)
+          writePublicBootstrapCache({
+            collections: bootstrap.collections,
+            products: bootstrap.products,
+            reviews: bootstrap.reviews,
+            shippingRates: bootstrap.shippingRates
+          })
+          setIsPublicBootstrapResolved(true)
         }
         setIsDatabaseReady(true)
       } catch (error) {
         console.error(error)
         if (ignore) return
         setIsDatabaseReady(false)
-        setCollections(initialCollections)
-        setProducts(initialProducts)
-        setOrders(initialOrders)
-        setReviews(initialReviews)
-        setDeletedCollections([])
-        setDeletedProducts([])
-        setDeletedReviews([])
-        setMessages(initialMessages)
-        setShippingRates(shippingByCommune)
-        setShippingForm(shippingByCommune)
+        if (!path.startsWith('/admin')) {
+          const fallbackBootstrap = readPublicBootstrapCache()
+
+          if (fallbackBootstrap) {
+            setCollections(fallbackBootstrap.collections)
+            setProducts(fallbackBootstrap.products)
+            setReviews(fallbackBootstrap.reviews)
+            setShippingRates(fallbackBootstrap.shippingRates)
+            setShippingForm(fallbackBootstrap.shippingRates)
+          } else {
+            setCollections(initialCollections)
+            setProducts(initialProducts)
+            setReviews(initialReviews)
+            setShippingRates(shippingByCommune)
+            setShippingForm(shippingByCommune)
+          }
+
+          setDeletedCollections([])
+          setDeletedProducts([])
+          setDeletedReviews([])
+          setIsPublicBootstrapResolved(true)
+        } else {
+          setOrders(initialOrders)
+          setMessages(initialMessages)
+        }
         showToast('Mode local actif', 'La base ou la session admin n est pas joignable. L interface garde les donnees de demo.')
       }
     }
@@ -2618,6 +2668,12 @@ export default function App() {
     )
   }
 
+  const shouldShowPublicLoading =
+    !isPublicBootstrapResolved &&
+    collections.length === 0 &&
+    products.length === 0 &&
+    reviews.length === 0
+
   return (
     <PageTransition pageKey={path}>
     <div className="min-h-screen bg-[#f8f4ef] text-[#241f2b]">
@@ -2720,6 +2776,47 @@ export default function App() {
         </AnimatePresence>
       </header>
 
+      {shouldShowPublicLoading ? (
+        <main className="border-b border-[#e4d9e8]">
+          <section className="section-shell pb-12 pt-8">
+            <div className="animate-pulse">
+              <div className="grid gap-6 lg:grid-cols-3">
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <div
+                    key={`loading-feature-${index}`}
+                    className="overflow-hidden rounded-[30px] border border-[#e4d9e8] bg-white/70 shadow-[0_20px_60px_rgba(70,38,82,0.08)]"
+                  >
+                    <div className="h-[320px] bg-[#efe7f2]" />
+                    <div className="space-y-4 p-6">
+                      <div className="h-3 w-32 rounded-full bg-[#f0d7e6]" />
+                      <div className="h-8 w-48 rounded-full bg-[#ece3ef]" />
+                      <div className="h-4 w-full rounded-full bg-[#efe7f2]" />
+                      <div className="h-4 w-3/4 rounded-full bg-[#efe7f2]" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-14">
+                <div className="mx-auto h-3 w-40 rounded-full bg-[#f0d7e6]" />
+                <div className="mx-auto mt-5 h-12 w-72 rounded-full bg-[#ece3ef]" />
+              </div>
+
+              <div className="mt-12 grid gap-8 md:grid-cols-2 xl:grid-cols-4">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <div key={`loading-product-${index}`} className="rounded-[24px] border border-[#ece2ee] bg-[#fffdfd] p-4">
+                    <div className="h-56 rounded-[20px] bg-[#efe7f2]" />
+                    <div className="mt-4 h-3 w-24 rounded-full bg-[#f0d7e6]" />
+                    <div className="mt-3 h-7 w-40 rounded-full bg-[#ece3ef]" />
+                    <div className="mt-3 h-4 w-full rounded-full bg-[#efe7f2]" />
+                    <div className="mt-2 h-4 w-2/3 rounded-full bg-[#efe7f2]" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        </main>
+      ) : (
       <main className="border-b border-[#e4d9e8]">
         <section id="accueil" className="section-shell pb-12 pt-3">
           <RevealSection>
@@ -3072,6 +3169,7 @@ export default function App() {
           </RevealSection>
         </section>
       </main>
+      )}
 
       <footer className="border-t border-[#e4d9e8] bg-[#f6f1eb]">
         <div className="section-shell flex flex-col gap-4 py-8 text-sm text-[#70667d] md:flex-row md:items-center md:justify-between">
