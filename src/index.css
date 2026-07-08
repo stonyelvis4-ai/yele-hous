@@ -4,7 +4,7 @@
 
 :root {
   color: #241f2b;
-  background: #f8f4ef;
+  background: #fdf1f7;
   font-family: Inter, system-ui, sans-serif;
 }
 
@@ -96,7 +96,7 @@ body {
   padding: 0 16px;
   border-radius: 999px;
   border: 1px solid rgba(202, 185, 205, 0.78);
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 246, 251, 0.96);
   color: #5f556a;
   font-size: 12px;
   font-weight: 700;
@@ -159,20 +159,20 @@ body {
   height: 5px;
   border-radius: 999px;
   margin: 18px auto 0;
-  background: linear-gradient(90deg, #ef4cae, #7e3cf1);
+  background: linear-gradient(90deg, #ef4cae, #c95aed);
 }
 
 .feature-card,
 .product-card,
 .panel-card,
 .review-score-card {
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(210, 189, 209, 0.7);
+  background: rgba(255, 246, 251, 0.94);
+  border: 1px solid rgba(231, 189, 214, 0.78);
   border-radius: 26px;
 }
 
 .panel-card {
-  box-shadow: 0 22px 70px rgba(129, 97, 131, 0.12);
+  box-shadow: 0 22px 70px rgba(189, 87, 143, 0.14);
 }
 
 .feature-card {
@@ -219,8 +219,8 @@ body {
   width: min(100%, 340px);
   padding: 14px 16px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.88);
-  border: 1px solid rgba(202, 185, 205, 0.75);
+  background: rgba(255, 244, 249, 0.92);
+  border: 1px solid rgba(227, 191, 214, 0.8);
 }
 
 .product-card {
@@ -291,8 +291,8 @@ body {
 .field-area {
   width: 100%;
   border-radius: 18px;
-  border: 1px solid rgba(202, 185, 205, 0.78);
-  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(227, 191, 214, 0.84);
+  background: rgba(255, 248, 252, 0.98);
   color: #241f2b;
   outline: none;
 }
@@ -392,8 +392,8 @@ body {
 .secondary-button {
   min-height: 44px;
   padding: 10px 16px;
-  border: 1px solid rgba(202, 185, 205, 0.78);
-  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(227, 191, 214, 0.84);
+  background: rgba(255, 246, 251, 0.96);
   color: #241f2b;
   font-size: 14px;
 }
@@ -408,8 +408,8 @@ body {
 .filter-chip {
   min-height: 40px;
   padding: 8px 14px;
-  border: 1px solid rgba(202, 185, 205, 0.78);
-  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(227, 191, 214, 0.84);
+  background: rgba(255, 246, 251, 0.94);
   color: rgba(72, 60, 85, 0.78);
   font-size: 13px;
   font-weight: 600;
@@ -425,8 +425,8 @@ body {
   justify-content: center;
   width: 36px;
   height: 36px;
-  border: 1px solid rgba(202, 185, 205, 0.78);
-  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(227, 191, 214, 0.84);
+  background: rgba(255, 246, 251, 0.95);
   color: #241f2b;
 }
 
@@ -449,9 +449,9 @@ body {
 }
 
 .cart-panel-section {
-  border: 1px solid rgba(210, 189, 209, 0.7);
+  border: 1px solid rgba(231, 189, 214, 0.78);
   border-radius: 22px;
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 246, 251, 0.94);
   padding: 20px;
 }
 
@@ -482,8 +482,8 @@ body {
   min-height: 28px;
   padding: 0 10px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.86);
-  border: 1px solid rgba(202, 185, 205, 0.72);
+  background: rgba(255, 246, 251, 0.9);
+  border: 1px solid rgba(227, 191, 214, 0.8);
 }
 
 .cart-icon-button {
@@ -538,8 +538,8 @@ body {
 .cart-field-area {
   width: 100%;
   border-radius: 14px;
-  border: 1px solid rgba(202, 185, 205, 0.78);
-  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(227, 191, 214, 0.84);
+  background: rgba(255, 248, 252, 0.98);
   color: #241f2b;
   outline: none;
   transition: 160ms ease;
@@ -652,8 +652,8 @@ body {
   overflow: hidden;
   min-height: 320px;
   border-radius: 22px;
-  border: 1px solid rgba(202, 185, 205, 0.74);
-  background: #ffffff;
+  border: 1px solid rgba(227, 191, 214, 0.82);
+  background: #fff7fb;
 }
 
 .premium-preview-image {
@@ -680,8 +680,8 @@ body {
   gap: 14px;
   padding: 12px;
   border-radius: 20px;
-  border: 1px solid rgba(202, 185, 205, 0.75);
-  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(227, 191, 214, 0.82);
+  background: rgba(255, 246, 251, 0.96);
 }
 
 .look-complete-image {
@@ -715,8 +715,8 @@ body {
 .admin-sidebar-card,
 .admin-stat-card,
 .admin-info-card {
-  background: rgba(255, 255, 255, 0.94);
-  border: 1px solid rgba(202, 185, 205, 0.78);
+  background: rgba(255, 246, 251, 0.96);
+  border: 1px solid rgba(227, 191, 214, 0.84);
   border-radius: 24px;
 }
 
@@ -746,9 +746,9 @@ body {
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  border: 1px solid rgba(202, 185, 205, 0.72);
+  border: 1px solid rgba(227, 191, 214, 0.8);
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 246, 251, 0.94);
   color: rgba(36, 31, 43, 0.82);
   font-size: 14px;
   font-weight: 600;
@@ -800,8 +800,8 @@ body {
 .admin-mini-card {
   padding: 14px 16px;
   border-radius: 18px;
-  background: #fcf8ff;
-  border: 1px solid rgba(202, 185, 205, 0.68);
+  background: #fff4fa;
+  border: 1px solid rgba(227, 191, 214, 0.76);
 }
 
 .admin-mini-value,
@@ -930,9 +930,9 @@ body {
   justify-content: space-between;
   gap: 12px;
   padding: 0 16px;
-  border: 1px solid rgba(202, 185, 205, 0.78);
+  border: 1px solid rgba(227, 191, 214, 0.84);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.96);
+  background: rgba(255, 248, 252, 0.98);
   color: #241f2b;
   font-size: 14px;
   font-weight: 600;
@@ -958,9 +958,9 @@ body {
   align-items: center;
   gap: 10px;
   padding: 10px 14px;
-  border: 1px solid rgba(202, 185, 205, 0.74);
+  border: 1px solid rgba(227, 191, 214, 0.8);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.94);
+  background: rgba(255, 246, 251, 0.96);
   color: #241f2b;
   font-size: 14px;
   font-weight: 600;
@@ -1007,8 +1007,8 @@ body {
   min-height: 38px;
   padding: 8px 12px;
   border-radius: 999px;
-  border: 1px solid rgba(202, 185, 205, 0.74);
-  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(227, 191, 214, 0.8);
+  background: rgba(255, 246, 251, 0.96);
   color: #241f2b;
   font-size: 13px;
   font-weight: 600;
@@ -1022,10 +1022,10 @@ body {
 
 .admin-image-preview {
   margin-top: 14px;
-  border: 1px solid rgba(202, 185, 205, 0.74);
+  border: 1px solid rgba(227, 191, 214, 0.8);
   border-radius: 20px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.94);
+  background: rgba(255, 246, 251, 0.96);
 }
 
 .admin-image-preview-media {
@@ -1046,7 +1046,7 @@ body {
   gap: 18px;
   align-items: center;
   padding: 18px 0;
-  border-top: 1px solid rgba(202, 185, 205, 0.46);
+  border-top: 1px solid rgba(227, 191, 214, 0.56);
 }
 
 .admin-order-row-head {
@@ -1119,8 +1119,8 @@ body {
   min-height: 52px;
   padding: 0 16px;
   border-radius: 18px;
-  border: 1px solid rgba(202, 185, 205, 0.68);
-  background: #fcf8ff;
+  border: 1px solid rgba(227, 191, 214, 0.76);
+  background: #fff4fa;
 }
 
 .admin-route-dot {

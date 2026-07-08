@@ -29,7 +29,7 @@ export function AnimatedModal({ open, onClose, children }: AnimatedModalProps) {
               exit="exit"
               variants={modalVariants}
               transition={modalTransition}
-              className="w-full max-w-[560px] rounded-[28px] border border-[#dbcde0] bg-[#fffdfd] p-8 shadow-[0_30px_90px_rgba(95,72,118,0.18)]"
+              className="w-full max-w-[560px] rounded-[28px] border border-[#e7c8db] bg-[#fff7fb] p-8 shadow-[0_30px_90px_rgba(138,67,108,0.18)]"
             >
               {children}
             </motion.div>

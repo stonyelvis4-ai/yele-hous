@@ -1331,7 +1331,7 @@ export default function App() {
   if (path === '/admin/login') {
     return (
       <PageTransition pageKey={path}>
-        <div className="min-h-screen overflow-hidden bg-[#f8f4ef] text-[#241f2b]">
+        <div className="min-h-screen overflow-hidden bg-[#fdf1f7] text-[#241f2b]">
           <ToastNotification open={!!toast.title} title={toast.title} message={toast.message} />
           <div className="promo-bar">
             <span>ESPACE ADMIN PRIVE YELE HOUSE&apos;S</span>
@@ -1433,13 +1433,13 @@ export default function App() {
 
     return (
       <PageTransition pageKey={path}>
-      <div className="min-h-screen bg-[#f8f4ef] text-[#241f2b]">
+      <div className="min-h-screen bg-[#fdf1f7] text-[#241f2b]">
         <ToastNotification open={!!toast.title} title={toast.title} message={toast.message} />
         <div className="promo-bar">
           <span>ESPACE DE GESTION PRIVE YELE HOUSE&apos;S</span>
         </div>
 
-        <header className="sticky top-0 z-40 border-b border-[#e4d9e8] bg-[rgba(248,244,239,0.94)] backdrop-blur-xl">
+        <header className="sticky top-0 z-40 border-b border-[#ecd3e4] bg-[rgba(253,241,247,0.94)] backdrop-blur-xl">
           <div className="mx-auto flex max-w-[1280px] flex-col gap-5 px-5 py-5 xl:flex-row xl:items-center xl:justify-between">
             <div>
               <div className="flex items-end gap-2 leading-none">
@@ -2676,13 +2676,13 @@ export default function App() {
 
   return (
     <PageTransition pageKey={path}>
-    <div className="min-h-screen bg-[#f8f4ef] text-[#241f2b]">
+    <div className="min-h-screen bg-[#fdf1f7] text-[#241f2b]">
       <ToastNotification open={!!toast.title} title={toast.title} message={toast.message} />
       <div className="promo-bar">
         <span>LIVRAISON EXPRESS A ABIDJAN EN 24H ET EXPEDITION DANS TOUTE LA COTE D&apos;IVOIRE</span>
       </div>
 
-      <header className="sticky top-0 z-40 border-b border-[#e4d9e8] bg-[rgba(248,244,239,0.94)] backdrop-blur-xl">
+      <header className="sticky top-0 z-40 border-b border-[#ecd3e4] bg-[rgba(253,241,247,0.94)] backdrop-blur-xl">
         <div className="mx-auto flex max-w-[1240px] items-center justify-between gap-4 px-5 py-5">
           <button type="button" onClick={() => goToSection('accueil')} className="text-left">
             <div className="flex items-end gap-2 leading-none">
@@ -2755,7 +2755,7 @@ export default function App() {
               initial={{ opacity: 0, y: -12 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -12 }}
-              className="border-t border-[#e4d9e8] bg-[#f8f4ef] px-5 py-4 lg:hidden"
+              className="border-t border-[#ecd3e4] bg-[#fdf1f7] px-5 py-4 lg:hidden"
             >
               <div className="mx-auto flex max-w-[1240px] flex-col gap-2">
                 {publicNavItems.map((item) => (
@@ -3171,7 +3171,7 @@ export default function App() {
       </main>
       )}
 
-      <footer className="border-t border-[#e4d9e8] bg-[#f6f1eb]">
+      <footer className="border-t border-[#ecd3e4] bg-[#f9e8f1]">
         <div className="section-shell flex flex-col gap-4 py-8 text-sm text-[#70667d] md:flex-row md:items-center md:justify-between">
           <div>
             <p className="font-semibold uppercase tracking-[0.16em] text-[#332b3c]">Yele House&apos;s</p>
