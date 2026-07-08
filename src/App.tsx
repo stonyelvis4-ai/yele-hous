@@ -363,6 +363,8 @@ export default function App() {
   const [adminAuthResolved, setAdminAuthResolved] = useState(false)
   const galleryInputRef = useRef<HTMLInputElement | null>(null)
   const cameraInputRef = useRef<HTMLInputElement | null>(null)
+  const collectionGalleryInputRef = useRef<HTMLInputElement | null>(null)
+  const collectionCameraInputRef = useRef<HTMLInputElement | null>(null)
   const communeOptions = useMemo(() => Object.keys(shippingRates), [shippingRates])
 
   useEffect(() => {
@@ -891,6 +893,24 @@ export default function App() {
       } catch (error) {
         console.error(error)
         showToast('Image indisponible', 'Impossible de preparer cette photo pour le moment.')
+      }
+    })()
+  }
+
+  const handleCollectionImageFile = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    event.target.value = ''
+
+    void (async () => {
+      try {
+        const optimizedImage = await optimizeProductImageFile(file)
+        setCollectionForm((current) => ({ ...current, image: optimizedImage }))
+        showToast('Image ajoutee', 'Le visuel de la tendance a ete optimise puis charge.')
+      } catch (error) {
+        console.error(error)
+        showToast('Image indisponible', 'Impossible de preparer cette photo pour la tendance.')
       }
     })()
   }
@@ -1768,7 +1788,7 @@ export default function App() {
               <div className="mt-10 border-t border-[#e4d9e8] pt-8">
                 <div className="mb-6 flex items-center gap-3">
                   <BadgePercent size={18} className="text-[#f04cb3]" />
-                  <h2 className="text-[22px] font-semibold text-[#241f2b]">Collections Signature</h2>
+                  <h2 className="text-[22px] font-semibold text-[#241f2b]">Tendances & Collections Signature</h2>
                 </div>
 
                 <form onSubmit={saveCollection} className="grid gap-4">
@@ -1793,21 +1813,69 @@ export default function App() {
                     placeholder="Description editoriale de la collection"
                     className="field-area"
                   />
-                  <div className="grid gap-4 md:grid-cols-[1fr_auto]">
-                    <input
-                      value={collectionForm.image}
-                      onChange={(event) => setCollectionForm((current) => ({ ...current, image: event.target.value }))}
-                      placeholder="URL image de collection"
-                      className="field-input"
-                    />
-                    <label className="flex items-center gap-3 text-sm text-[#6f657a]">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
                       <input
-                        type="checkbox"
-                        checked={collectionForm.isFeatured}
-                        onChange={(event) => setCollectionForm((current) => ({ ...current, isFeatured: event.target.checked }))}
+                        value={collectionForm.image}
+                        onChange={(event) => setCollectionForm((current) => ({ ...current, image: event.target.value }))}
+                        placeholder="URL image de la tendance"
+                        className="field-input"
                       />
-                      Collection mise en avant
-                    </label>
+                      <input
+                        ref={collectionGalleryInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleCollectionImageFile}
+                      />
+                      <input
+                        ref={collectionCameraInputRef}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={handleCollectionImageFile}
+                      />
+                      <div className="admin-upload-actions">
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() => collectionCameraInputRef.current?.click()}
+                        >
+                          Prendre une photo
+                        </button>
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() => collectionGalleryInputRef.current?.click()}
+                        >
+                          Importer une photo
+                        </button>
+                      </div>
+                      <p className="admin-field-help">
+                        Changez l&apos;image de la tendance avec une URL, une photo prise sur place ou une image importee.
+                      </p>
+                      {collectionForm.image ? (
+                        <div className="admin-image-preview">
+                          <img
+                            src={collectionForm.image}
+                            alt="Apercu de la tendance"
+                            className="admin-image-preview-media"
+                            onError={(event) => applyImageFallback(event, collectionFallbackImage)}
+                          />
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="flex items-start md:justify-end">
+                      <label className="flex items-center gap-3 text-sm text-[#6f657a]">
+                        <input
+                          type="checkbox"
+                          checked={collectionForm.isFeatured}
+                          onChange={(event) => setCollectionForm((current) => ({ ...current, isFeatured: event.target.checked }))}
+                        />
+                        Afficher cette tendance sur l&apos;accueil
+                      </label>
+                    </div>
                   </div>
                   <div className="flex flex-wrap gap-3">
                     <button type="submit" className="primary-button px-6">
