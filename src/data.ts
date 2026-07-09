@@ -16,6 +16,7 @@ export const initialCollections: Collection[] = [
     slug: 'abidjan-soiree',
     description: 'Silhouettes de nuit, satin couture et eclat editorial pour les grands rendez-vous.',
     image: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=1200&q=80',
+    video: '',
     isFeatured: true
   },
   {
@@ -24,6 +25,8 @@ export const initialCollections: Collection[] = [
     slug: 'essentiels-maison',
     description: 'Pieces signatures a porter, offrir et recomposer au fil des saisons.',
     image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=1200&q=80'
+    ,
+    video: ''
   },
   {
     id: 'col-parfums-ivoire',
@@ -31,6 +34,7 @@ export const initialCollections: Collection[] = [
     slug: 'parfums-d-ivoire',
     description: 'Une selection de sillages solaires, bois precieux et nectar haute presence.',
     image: 'https://images.unsplash.com/photo-1523293182086-7651a899d37f?auto=format&fit=crop&w=1200&q=80',
+    video: '',
     isFeatured: true
   }
 ]
@@ -51,7 +55,8 @@ export const initialProducts: Product[] = [
     isBestSeller: true,
     image:
       'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=1200&q=80',
-    images: ['https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=1200&q=80']
+    images: ['https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=1200&q=80'],
+    video: ''
   },
   {
     id: 'sac-ebene',
@@ -66,7 +71,8 @@ export const initialProducts: Product[] = [
     stock: 5,
     image:
       'https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=1200&q=80',
-    images: ['https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=1200&q=80']
+    images: ['https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=1200&q=80'],
+    video: ''
   },
   {
     id: 'parfum-soleil',
@@ -82,7 +88,8 @@ export const initialProducts: Product[] = [
     isBestSeller: true,
     image:
       'https://images.unsplash.com/photo-1594035910387-fea47794261f?auto=format&fit=crop&w=1200&q=80',
-    images: ['https://images.unsplash.com/photo-1594035910387-fea47794261f?auto=format&fit=crop&w=1200&q=80']
+    images: ['https://images.unsplash.com/photo-1594035910387-fea47794261f?auto=format&fit=crop&w=1200&q=80'],
+    video: ''
   },
   {
     id: 'manchette-bahia',
@@ -97,7 +104,8 @@ export const initialProducts: Product[] = [
     stock: 12,
     image:
       'https://images.unsplash.com/photo-1617038220319-276d3cfab638?auto=format&fit=crop&w=1200&q=80',
-    images: ['https://images.unsplash.com/photo-1617038220319-276d3cfab638?auto=format&fit=crop&w=1200&q=80']
+    images: ['https://images.unsplash.com/photo-1617038220319-276d3cfab638?auto=format&fit=crop&w=1200&q=80'],
+    video: ''
   }
 ]
 

@@ -29,6 +29,7 @@ const defaultCollections = [
     slug: 'abidjan-soiree',
     description: 'Silhouettes de nuit, satin couture et eclat editorial pour les grands rendez-vous.',
     image: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=1200&q=80',
+    video: '',
     isFeatured: true
   },
   {
@@ -37,6 +38,7 @@ const defaultCollections = [
     slug: 'essentiels-maison',
     description: 'Pieces signatures a porter, offrir et recomposer au fil des saisons.',
     image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=1200&q=80',
+    video: '',
     isFeatured: false
   },
   {
@@ -45,6 +47,7 @@ const defaultCollections = [
     slug: 'parfums-d-ivoire',
     description: 'Une selection de sillages solaires, bois precieux et nectar haute presence.',
     image: 'https://images.unsplash.com/photo-1523293182086-7651a899d37f?auto=format&fit=crop&w=1200&q=80',
+    video: '',
     isFeatured: true
   }
 ]
@@ -164,6 +167,7 @@ function mapProduct(row) {
     isBestSeller: row.is_best_seller,
     image: primaryImage,
     images: images.length ? images : primaryImage ? [primaryImage] : [],
+    video: row.video ?? undefined,
     deletedAt: row.deleted_at ?? undefined
   }
 }
@@ -175,6 +179,7 @@ function mapCollection(row) {
     slug: row.slug,
     description: row.description,
     image: row.image,
+    video: row.video ?? undefined,
     isFeatured: row.is_featured,
     deletedAt: row.deleted_at ?? undefined
   }
@@ -386,7 +391,8 @@ function normalizeProductBody(body) {
     stock: Number(body.stock ?? 0),
     isBestSeller: Boolean(body.isBestSeller),
     image: image || normalizedImages[0] || '',
-    images: normalizedImages
+    images: normalizedImages,
+    video: String(body.video ?? '').trim() || null
   }
 }
 
@@ -397,6 +403,7 @@ function normalizeCollectionBody(body) {
     slug: String(body.slug ?? '').trim(),
     description: String(body.description ?? '').trim(),
     image: String(body.image ?? '').trim(),
+    video: String(body.video ?? '').trim() || null,
     isFeatured: Boolean(body.isFeatured)
   }
 }
@@ -578,10 +585,10 @@ app.post('/api/collections', requireAdminApiAuth, async (req, res) => {
   const collection = normalizeCollectionBody(req.body)
   await pool.query(
     `
-      insert into collections (id, name, slug, description, image, is_featured)
-      values ($1,$2,$3,$4,$5,$6)
+      insert into collections (id, name, slug, description, image, video, is_featured)
+      values ($1,$2,$3,$4,$5,$6,$7)
     `,
-    [collection.id, collection.name, collection.slug, collection.description, collection.image, collection.isFeatured]
+    [collection.id, collection.name, collection.slug, collection.description, collection.image, collection.video, collection.isFeatured]
   )
   const { rows } = await pool.query('select * from collections where id = $1', [collection.id])
   res.status(201).json(mapCollection(rows[0]))
@@ -592,10 +599,10 @@ app.put('/api/collections/:id', requireAdminApiAuth, async (req, res) => {
   await pool.query(
     `
       update collections
-      set name = $2, slug = $3, description = $4, image = $5, is_featured = $6, updated_at = now()
+      set name = $2, slug = $3, description = $4, image = $5, video = $6, is_featured = $7, updated_at = now()
       where id = $1
     `,
-    [collection.id, collection.name, collection.slug, collection.description, collection.image, collection.isFeatured]
+    [collection.id, collection.name, collection.slug, collection.description, collection.image, collection.video, collection.isFeatured]
   )
   const { rows } = await pool.query('select * from collections where id = $1', [collection.id])
   res.json(mapCollection(rows[0]))
@@ -638,8 +645,8 @@ app.post('/api/products', requireAdminApiAuth, async (req, res) => {
   await pool.query(
     `
       insert into products (
-        id, name, category, collection_id, price, compare_at_price, description, material, colors, sizes, stock, is_best_seller, image, images
-      ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+        id, name, category, collection_id, price, compare_at_price, description, material, colors, sizes, stock, is_best_seller, image, images, video
+      ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
     `,
     [
       product.id,
@@ -655,7 +662,8 @@ app.post('/api/products', requireAdminApiAuth, async (req, res) => {
       product.stock,
       product.isBestSeller,
       product.image,
-      product.images
+      product.images,
+      product.video
     ]
   )
 
@@ -682,6 +690,7 @@ app.put('/api/products/:id', requireAdminApiAuth, async (req, res) => {
         is_best_seller = $12,
         image = $13,
         images = $14,
+        video = $15,
         updated_at = now()
       where id = $1
     `,
@@ -699,7 +708,8 @@ app.put('/api/products/:id', requireAdminApiAuth, async (req, res) => {
       product.stock,
       product.isBestSeller,
       product.image,
-      product.images
+      product.images,
+      product.video
     ]
   )
 
@@ -874,6 +884,7 @@ export async function ensureRuntimeSchema() {
           slug text not null unique,
           description text not null,
           image text not null,
+          video text,
           is_featured boolean not null default false,
           deleted_at timestamptz,
           created_at timestamptz not null default now(),
@@ -884,6 +895,11 @@ export async function ensureRuntimeSchema() {
       await pool.query(`
         alter table collections
         add column if not exists deleted_at timestamptz
+      `)
+
+      await pool.query(`
+        alter table collections
+        add column if not exists video text
       `)
 
       await pool.query(`
@@ -899,6 +915,11 @@ export async function ensureRuntimeSchema() {
       await pool.query(`
         alter table products
         add column if not exists deleted_at timestamptz
+      `)
+
+      await pool.query(`
+        alter table products
+        add column if not exists video text
       `)
 
       await pool.query(`
@@ -937,11 +958,11 @@ export async function ensureRuntimeSchema() {
       for (const collection of defaultCollections) {
         await pool.query(
           `
-            insert into collections (id, name, slug, description, image, is_featured)
-            values ($1, $2, $3, $4, $5, $6)
+            insert into collections (id, name, slug, description, image, video, is_featured)
+            values ($1, $2, $3, $4, $5, $6, $7)
             on conflict (id) do nothing
           `,
-          [collection.id, collection.name, collection.slug, collection.description, collection.image, collection.isFeatured]
+          [collection.id, collection.name, collection.slug, collection.description, collection.image, collection.video, collection.isFeatured]
         )
       }
     })()

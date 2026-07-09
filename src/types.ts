@@ -7,6 +7,7 @@ export interface Collection {
   slug: string
   description: string
   image: string
+  video?: string
   isFeatured?: boolean
   deletedAt?: string
 }
@@ -26,6 +27,7 @@ export interface Product {
   isBestSeller?: boolean
   image: string
   images: string[]
+  video?: string
   deletedAt?: string
 }
 

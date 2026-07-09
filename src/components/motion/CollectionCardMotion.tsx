@@ -9,6 +9,7 @@ interface CollectionCardMotionProps {
   title: string
   copy: string
   image: string
+  video?: string
 }
 
 const collectionCardVariants: Variants = {
@@ -64,7 +65,7 @@ const collectionTransition: Transition = {
   ease: premiumEase
 }
 
-export function CollectionCardMotion({ title, copy, image }: CollectionCardMotionProps) {
+export function CollectionCardMotion({ title, copy, image, video }: CollectionCardMotionProps) {
   const [imageSrc, setImageSrc] = useState(image || collectionFallbackImage)
 
   return (
@@ -85,14 +86,29 @@ export function CollectionCardMotion({ title, copy, image }: CollectionCardMotio
       />
 
       <div className="relative overflow-hidden">
-        <motion.img
-          src={imageSrc}
-          alt={title}
-          className="feature-card-image"
-          onError={() => setImageSrc(collectionFallbackImage)}
-          variants={collectionImageVariants}
-          transition={collectionTransition}
-        />
+        {video ? (
+          <motion.video
+            src={video}
+            poster={imageSrc}
+            className="feature-card-image"
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            variants={collectionImageVariants}
+            transition={collectionTransition}
+          />
+        ) : (
+          <motion.img
+            src={imageSrc}
+            alt={title}
+            className="feature-card-image"
+            onError={() => setImageSrc(collectionFallbackImage)}
+            variants={collectionImageVariants}
+            transition={collectionTransition}
+          />
+        )}
       </div>
 
       <div className="feature-card-body">

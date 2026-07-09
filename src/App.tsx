@@ -108,6 +108,7 @@ type AdminPath = (typeof protectedAdminPaths)[number]
 
 const MAX_PRODUCT_IMAGE_DIMENSION = 1600
 const MAX_PRODUCT_IMAGE_BYTES = 1_600_000
+const MAX_MEDIA_VIDEO_BYTES = 12_000_000
 
 const emptyProductForm: Omit<Product, 'id'> = {
   name: '',
@@ -122,7 +123,8 @@ const emptyProductForm: Omit<Product, 'id'> = {
   stock: 0,
   isBestSeller: false,
   image: '',
-  images: []
+  images: [],
+  video: ''
 }
 
 const emptyReview = { author: '', rating: 5, title: '', body: '' }
@@ -132,13 +134,14 @@ const emptyCollectionForm: Omit<Collection, 'id'> = {
   slug: '',
   description: '',
   image: '',
+  video: '',
   isFeatured: false
 }
 const emptyAdminLoginForm = { email: '', password: '' }
 const emptyToast = { title: '', message: '' }
 const emptyPasswordForm = { currentPassword: '', nextPassword: '', confirmPassword: '' }
 const emptyGalleryImageInput = ''
-const PUBLIC_BOOTSTRAP_CACHE_KEY = 'yele-public-bootstrap-cache-v1'
+const PUBLIC_BOOTSTRAP_CACHE_KEY = 'yele-public-bootstrap-cache-v2'
 
 type PublicBootstrapCache = {
   collections: Collection[]
@@ -228,6 +231,14 @@ async function optimizeProductImageFile(file: File) {
   }
 
   return candidate
+}
+
+async function readVideoFile(file: File) {
+  if (file.size > MAX_MEDIA_VIDEO_BYTES) {
+    throw new Error('Video file too large')
+  }
+
+  return fileToDataUrl(file)
 }
 
 function scoreForProduct(product: Product) {
@@ -419,8 +430,12 @@ export default function App() {
   const [isPublicBootstrapResolved, setIsPublicBootstrapResolved] = useState(Boolean(cachedPublicBootstrap))
   const galleryInputRef = useRef<HTMLInputElement | null>(null)
   const cameraInputRef = useRef<HTMLInputElement | null>(null)
+  const galleryVideoInputRef = useRef<HTMLInputElement | null>(null)
+  const cameraVideoInputRef = useRef<HTMLInputElement | null>(null)
   const collectionGalleryInputRef = useRef<HTMLInputElement | null>(null)
   const collectionCameraInputRef = useRef<HTMLInputElement | null>(null)
+  const collectionGalleryVideoInputRef = useRef<HTMLInputElement | null>(null)
+  const collectionCameraVideoInputRef = useRef<HTMLInputElement | null>(null)
   const communeOptions = useMemo(() => Object.keys(shippingRates), [shippingRates])
 
   useEffect(() => {
@@ -986,6 +1001,7 @@ export default function App() {
       material: normalizedMaterial,
       images: uniqueImageList([productForm.image, ...productForm.images]),
       image: productForm.image.trim() || productForm.images[0]?.trim() || fallbackImage,
+      video: productForm.video?.trim() || undefined,
       collectionId: productForm.collectionId?.trim() || undefined,
       colors: normalizedColors.length ? normalizedColors : ['Unique'],
       sizes: normalizedSizes.length ? normalizedSizes : ['Unique'],
@@ -1045,6 +1061,24 @@ export default function App() {
       } catch (error) {
         console.error(error)
         showToast('Image indisponible', 'Impossible de preparer une ou plusieurs photos pour le moment.')
+      }
+    })()
+  }
+
+  const handleProductVideoFile = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    event.target.value = ''
+
+    void (async () => {
+      try {
+        const encodedVideo = await readVideoFile(file)
+        setProductForm((current) => ({ ...current, video: encodedVideo }))
+        showToast('Video ajoutee', 'La video du produit a ete preparee pour la vitrine.')
+      } catch (error) {
+        console.error(error)
+        showToast('Video indisponible', 'Impossible de charger cette video. Utilisez un fichier plus leger.')
       }
     })()
   }
@@ -1128,7 +1162,7 @@ export default function App() {
 
   const startEditingProduct = (product: Product) => {
     setEditingProductId(product.id)
-    setProductForm({
+        setProductForm({
       name: product.name,
       category: product.category,
       collectionId: product.collectionId ?? '',
@@ -1139,10 +1173,11 @@ export default function App() {
       colors: product.colors,
       sizes: product.sizes,
       stock: product.stock,
-      isBestSeller: !!product.isBestSeller,
-      image: product.image,
-      images: uniqueImageList([product.image, ...(product.images ?? [])])
-    })
+          isBestSeller: !!product.isBestSeller,
+          image: product.image,
+          images: uniqueImageList([product.image, ...(product.images ?? [])]),
+          video: product.video ?? ''
+        })
     setAdminCustomColor('')
     setAdminGalleryImageInput(emptyGalleryImageInput)
     setAdminColorsOpen(false)
@@ -1161,7 +1196,8 @@ export default function App() {
         ''
       ),
       description: collectionForm.description.trim(),
-      image: collectionForm.image.trim() || initialCollections[0].image
+      image: collectionForm.image.trim() || initialCollections[0].image,
+      video: collectionForm.video?.trim() || undefined
     }
 
     if (!normalized.name || !normalized.slug || !normalized.description) return
@@ -1200,9 +1236,28 @@ export default function App() {
       slug: collection.slug,
       description: collection.description,
       image: collection.image,
+      video: collection.video ?? '',
       isFeatured: !!collection.isFeatured
     })
     navigate('/admin/products')
+  }
+
+  const handleCollectionVideoFile = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    event.target.value = ''
+
+    void (async () => {
+      try {
+        const encodedVideo = await readVideoFile(file)
+        setCollectionForm((current) => ({ ...current, video: encodedVideo }))
+        showToast('Video ajoutee', 'La video de la tendance a ete preparee pour la vitrine.')
+      } catch (error) {
+        console.error(error)
+        showToast('Video indisponible', 'Impossible de charger cette video. Utilisez un fichier plus leger.')
+      }
+    })()
   }
 
   const handleAdminLogin = (event: FormEvent) => {
@@ -1618,12 +1673,25 @@ export default function App() {
                   <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
                     {recentCollections.map((collection) => (
                       <div key={collection.id} className="rounded-[22px] border border-[#dfd3e4] bg-[#fffdfd] p-4">
-                        <img
-                          src={collection.image}
-                          alt={collection.name}
-                          className="h-44 w-full rounded-[18px] object-cover"
-                          onError={(event) => applyImageFallback(event, collectionFallbackImage)}
-                        />
+                        {collection.video ? (
+                          <video
+                            src={collection.video}
+                            poster={collection.image}
+                            className="h-44 w-full rounded-[18px] object-cover"
+                            autoPlay
+                            muted
+                            loop
+                            playsInline
+                            preload="metadata"
+                          />
+                        ) : (
+                          <img
+                            src={collection.image}
+                            alt={collection.name}
+                            className="h-44 w-full rounded-[18px] object-cover"
+                            onError={(event) => applyImageFallback(event, collectionFallbackImage)}
+                          />
+                        )}
                         <div className="mt-4 flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <h3 className="truncate font-semibold text-[#241f2b]">{collection.name}</h3>
@@ -1871,6 +1939,21 @@ export default function App() {
                       className="hidden"
                       onChange={handleProductImageFile}
                     />
+                    <input
+                      ref={galleryVideoInputRef}
+                      type="file"
+                      accept="video/mp4,video/webm,video/quicktime"
+                      className="hidden"
+                      onChange={handleProductVideoFile}
+                    />
+                    <input
+                      ref={cameraVideoInputRef}
+                      type="file"
+                      accept="video/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={handleProductVideoFile}
+                    />
                     <div className="admin-upload-actions">
                       <button
                         type="button"
@@ -1890,6 +1973,45 @@ export default function App() {
                     <p className="admin-field-help">
                       Choisissez une image principale puis ajoutez autant de visuels supplementaires que necessaire.
                     </p>
+                    <div className="mt-3 grid gap-3">
+                      <input
+                        value={productForm.video ?? ''}
+                        onChange={(event) => setProductForm((current) => ({ ...current, video: event.target.value }))}
+                        placeholder="URL video produit (optionnelle)"
+                        className="field-input"
+                      />
+                      <div className="admin-upload-actions">
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() => cameraVideoInputRef.current?.click()}
+                        >
+                          Filmer le produit
+                        </button>
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() => galleryVideoInputRef.current?.click()}
+                        >
+                          Importer une video
+                        </button>
+                      </div>
+                      <p className="admin-field-help">
+                        Une petite video muette peut tourner en boucle sur la carte produit et dans la fiche detail.
+                      </p>
+                      {productForm.video ? (
+                        <div className="admin-image-preview">
+                          <video
+                            src={productForm.video}
+                            poster={productForm.image || productFallbackImage(productForm.category)}
+                            className="admin-image-preview-media"
+                            controls
+                            muted
+                            playsInline
+                          />
+                        </div>
+                      ) : null}
+                    </div>
                     {productForm.image ? (
                       <div className="admin-image-preview">
                         <img
@@ -2084,12 +2206,25 @@ export default function App() {
                     className="flex flex-col gap-4 rounded-[22px] border border-[#dfd3e4] bg-[#fffdfd] p-4 lg:flex-row lg:items-center lg:justify-between"
                   >
                     <div className="flex items-center gap-4">
-                      <img
-                        src={product.image}
-                        alt={product.name}
-                        className="h-14 w-14 rounded-[16px] object-cover"
-                        onError={(event) => applyImageFallback(event, productFallbackImage(product.category))}
-                      />
+                      {product.video ? (
+                        <video
+                          src={product.video}
+                          poster={product.image}
+                          className="h-14 w-14 rounded-[16px] object-cover"
+                          autoPlay
+                          muted
+                          loop
+                          playsInline
+                          preload="metadata"
+                        />
+                      ) : (
+                        <img
+                          src={product.image}
+                          alt={product.name}
+                          className="h-14 w-14 rounded-[16px] object-cover"
+                          onError={(event) => applyImageFallback(event, productFallbackImage(product.category))}
+                        />
+                      )}
                       <div>
                         <h3 className="font-semibold text-[#241f2b]">{product.name}</h3>
                         <p className="mt-1 text-sm text-[#8a7f95]">
@@ -2183,6 +2318,21 @@ export default function App() {
                         className="hidden"
                         onChange={handleCollectionImageFile}
                       />
+                      <input
+                        ref={collectionGalleryVideoInputRef}
+                        type="file"
+                        accept="video/mp4,video/webm,video/quicktime"
+                        className="hidden"
+                        onChange={handleCollectionVideoFile}
+                      />
+                      <input
+                        ref={collectionCameraVideoInputRef}
+                        type="file"
+                        accept="video/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={handleCollectionVideoFile}
+                      />
                       <div className="admin-upload-actions">
                         <button
                           type="button"
@@ -2202,6 +2352,31 @@ export default function App() {
                       <p className="admin-field-help">
                         Changez l&apos;image de la tendance avec une URL, une photo prise sur place ou une image importee.
                       </p>
+                      <input
+                        value={collectionForm.video ?? ''}
+                        onChange={(event) => setCollectionForm((current) => ({ ...current, video: event.target.value }))}
+                        placeholder="URL video de la tendance (optionnelle)"
+                        className="field-input mt-3"
+                      />
+                      <div className="admin-upload-actions">
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() => collectionCameraVideoInputRef.current?.click()}
+                        >
+                          Filmer la tendance
+                        </button>
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() => collectionGalleryVideoInputRef.current?.click()}
+                        >
+                          Importer une video
+                        </button>
+                      </div>
+                      <p className="admin-field-help">
+                        La video s&apos;affiche en boucle sur la carte tendance quand elle est renseignee.
+                      </p>
                       {collectionForm.image ? (
                         <div className="admin-image-preview">
                           <img
@@ -2209,6 +2384,18 @@ export default function App() {
                             alt="Apercu de la tendance"
                             className="admin-image-preview-media"
                             onError={(event) => applyImageFallback(event, collectionFallbackImage)}
+                          />
+                        </div>
+                      ) : null}
+                      {collectionForm.video ? (
+                        <div className="admin-image-preview mt-3">
+                          <video
+                            src={collectionForm.video}
+                            poster={collectionForm.image || collectionFallbackImage}
+                            className="admin-image-preview-media"
+                            controls
+                            muted
+                            playsInline
                           />
                         </div>
                       ) : null}
@@ -2246,13 +2433,26 @@ export default function App() {
                 <div className="mt-6 grid gap-4 lg:grid-cols-2">
                   {collections.map((collection) => (
                     <div key={collection.id} className="rounded-[22px] border border-[#dfd3e4] bg-[#fffdfd] p-4">
-                      <div className="flex items-start gap-4">
-                        <img
-                          src={collection.image}
-                          alt={collection.name}
-                          className="h-16 w-16 rounded-[16px] object-cover"
-                          onError={(event) => applyImageFallback(event, collectionFallbackImage)}
-                        />
+                    <div className="flex items-start gap-4">
+                        {collection.video ? (
+                          <video
+                            src={collection.video}
+                            poster={collection.image}
+                            className="h-16 w-16 rounded-[16px] object-cover"
+                            autoPlay
+                            muted
+                            loop
+                            playsInline
+                            preload="metadata"
+                          />
+                        ) : (
+                          <img
+                            src={collection.image}
+                            alt={collection.name}
+                            className="h-16 w-16 rounded-[16px] object-cover"
+                            onError={(event) => applyImageFallback(event, collectionFallbackImage)}
+                          />
+                        )}
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between gap-3">
                             <h3 className="font-semibold text-[#241f2b]">{collection.name}</h3>
@@ -2907,6 +3107,7 @@ export default function App() {
                   title={collection.name}
                   copy={collection.description}
                   image={collection.image}
+                  video={collection.video}
                 />
               ))}
             </div>
@@ -2924,12 +3125,25 @@ export default function App() {
 
               return (
                 <article key={product.id} className="feature-card">
-                  <img
-                    src={product.image}
-                    alt={product.name}
-                    className="feature-card-image"
-                    onError={(event) => applyImageFallback(event, productFallbackImage(product.category))}
-                  />
+                  {product.video ? (
+                    <video
+                      src={product.video}
+                      poster={product.image}
+                      className="feature-card-image"
+                      autoPlay
+                      muted
+                      loop
+                      playsInline
+                      preload="metadata"
+                    />
+                  ) : (
+                    <img
+                      src={product.image}
+                      alt={product.name}
+                      className="feature-card-image"
+                      onError={(event) => applyImageFallback(event, productFallbackImage(product.category))}
+                    />
+                  )}
                   <div className="feature-card-body">
                     <p className="feature-kicker">{copy.kicker}</p>
                     <div className="flex items-start justify-between gap-4">
@@ -3005,6 +3219,7 @@ export default function App() {
                       price={currency.format(product.price)}
                       compareAtPrice={product.compareAtPrice ? currency.format(product.compareAtPrice) : undefined}
                       image={product.image}
+                      video={product.video}
                       colors={product.colors}
                       sizes={product.sizes}
                       selectedColor={selection.color}
@@ -3277,14 +3492,29 @@ export default function App() {
         {previewProduct ? (
           <div className="grid gap-6 md:grid-cols-[0.9fr_1.1fr]">
             <div className="premium-preview-media">
-              <motion.img
-                src={previewSelection?.image ?? previewProduct.image}
-                alt={previewProduct.name}
-                className="premium-preview-image"
-                onError={(event) => applyImageFallback(event, productFallbackImage(previewProduct.category))}
-                whileHover={{ scale: 1.08 }}
-                transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-              />
+              {previewProduct.video ? (
+                <motion.video
+                  src={previewProduct.video}
+                  poster={previewSelection?.image ?? previewProduct.image}
+                  className="premium-preview-image"
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  controls
+                  whileHover={{ scale: 1.04 }}
+                  transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+                />
+              ) : (
+                <motion.img
+                  src={previewSelection?.image ?? previewProduct.image}
+                  alt={previewProduct.name}
+                  className="premium-preview-image"
+                  onError={(event) => applyImageFallback(event, productFallbackImage(previewProduct.category))}
+                  whileHover={{ scale: 1.08 }}
+                  transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+                />
+              )}
               <div className="premium-preview-overlay" />
             </div>
 

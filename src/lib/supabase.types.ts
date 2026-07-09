@@ -21,6 +21,7 @@ export interface Database {
           slug: string
           description: string
           image: string
+          video: string | null
           is_featured: boolean
           deleted_at: string | null
           created_at: string
@@ -43,6 +44,7 @@ export interface Database {
           is_best_seller: boolean
           image: string
           images: string[] | null
+          video: string | null
           deleted_at: string | null
           created_at: string
           updated_at: string

@@ -13,6 +13,7 @@ interface ProductCardMotionProps {
   price: string
   compareAtPrice?: string
   image: string
+  video?: string
   colors: string[]
   sizes: string[]
   selectedColor: string
@@ -33,6 +34,7 @@ export function ProductCardMotion({
   price,
   compareAtPrice,
   image,
+  video,
   colors,
   sizes,
   selectedColor,
@@ -62,14 +64,29 @@ export function ProductCardMotion({
       />
 
       <button type="button" onClick={onPreview} className="relative block w-full overflow-hidden text-left">
-        <motion.img
-          src={imageSrc}
-          alt={title}
-          className="product-image"
-          onError={() => setImageSrc(productFallbackImage(category))}
-          variants={productCardImageVariants}
-          transition={subtleHoverTransition}
-        />
+        {video ? (
+          <motion.video
+            src={video}
+            poster={imageSrc}
+            className="product-image"
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            variants={productCardImageVariants}
+            transition={subtleHoverTransition}
+          />
+        ) : (
+          <motion.img
+            src={imageSrc}
+            alt={title}
+            className="product-image"
+            onError={() => setImageSrc(productFallbackImage(category))}
+            variants={productCardImageVariants}
+            transition={subtleHoverTransition}
+          />
+        )}
         <div className="absolute left-4 top-4">
           <AnimatedBadge>{badge}</AnimatedBadge>
         </div>
