@@ -693,6 +693,18 @@ export default function App() {
       .slice(0, 5)
   }, [orders])
 
+  const recentCollections = useMemo(() => {
+    return [...collections]
+      .sort((left, right) => {
+        if (Boolean(left.isFeatured) !== Boolean(right.isFeatured)) {
+          return left.isFeatured ? -1 : 1
+        }
+
+        return left.name.localeCompare(right.name)
+      })
+      .slice(0, 6)
+  }, [collections])
+
   const visibleOrders = useMemo(() => {
     return orderStatusFilter === 'Tous' ? orders : orders.filter((order) => order.status === orderStatusFilter)
   }, [orderStatusFilter, orders])
@@ -1588,6 +1600,58 @@ export default function App() {
                       </div>
                     ))}
                   </div>
+                </div>
+              ) : null}
+
+              {adminPath === '/admin/dashboard' ? (
+                <div className="panel-card p-7">
+                  <div className="mb-6 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <BadgePercent size={18} className="text-[#f04cb3]" />
+                      <h2 className="text-[22px] font-semibold text-[#241f2b]">Tendances & Collections</h2>
+                    </div>
+                    <button type="button" onClick={() => navigate('/admin/products')} className="admin-link-button">
+                      Gerer tout
+                    </button>
+                  </div>
+
+                  <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+                    {recentCollections.map((collection) => (
+                      <div key={collection.id} className="rounded-[22px] border border-[#dfd3e4] bg-[#fffdfd] p-4">
+                        <img
+                          src={collection.image}
+                          alt={collection.name}
+                          className="h-44 w-full rounded-[18px] object-cover"
+                          onError={(event) => applyImageFallback(event, collectionFallbackImage)}
+                        />
+                        <div className="mt-4 flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <h3 className="truncate font-semibold text-[#241f2b]">{collection.name}</h3>
+                            <p className="mt-2 max-h-[72px] overflow-hidden text-sm leading-6 text-[#6f657a]">{collection.description}</p>
+                          </div>
+                          {collection.isFeatured ? (
+                            <span className="rounded-full bg-[#ef4cae]/10 px-3 py-1 text-xs font-semibold text-[#f04cb3]">
+                              Accueil
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="mt-4 flex gap-2">
+                          <button type="button" onClick={() => startEditingCollection(collection)} className="secondary-button">
+                            Editer
+                          </button>
+                          <button type="button" onClick={() => navigate('/admin/products')} className="secondary-button">
+                            Ouvrir
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {!recentCollections.length ? (
+                    <p className="mt-4 rounded-[20px] border border-dashed border-[#dfd3e4] bg-[#fffdfd] px-5 py-6 text-sm text-[#7a6f86]">
+                      Aucune tendance disponible pour le moment.
+                    </p>
+                  ) : null}
                 </div>
               ) : null}
 
