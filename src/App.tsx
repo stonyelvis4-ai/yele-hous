@@ -298,6 +298,13 @@ function applyImageFallback(event: SyntheticEvent<HTMLImageElement>, fallbackSrc
   target.src = fallbackSrc
 }
 
+function defaultProductName(category: Category) {
+  if (category === 'Vetements') return 'Nouvel article couture'
+  if (category === 'Sacs') return 'Nouveau sac signature'
+  if (category === 'Parfums') return 'Nouveau parfum signature'
+  return 'Nouvel accessoire signature'
+}
+
 function currentPathname() {
   return window.location.pathname || '/'
 }
@@ -949,23 +956,31 @@ export default function App() {
   const saveProduct = (event: FormEvent) => {
     event.preventDefault()
 
+    const resolvedCategory = productForm.category ?? 'Vetements'
+    const fallbackImage = productFallbackImage(resolvedCategory)
+    const normalizedName = productForm.name.trim() || defaultProductName(resolvedCategory)
+    const normalizedDescription =
+      productForm.description.trim() || 'Piece signature de la Maison, prete a etre enrichie depuis le back-office.'
+    const normalizedMaterial = productForm.material.trim() || 'Finition signature Yele House'
+    const normalizedColors = productForm.colors.map((item) => item.trim()).filter(Boolean)
+    const normalizedSizes = productForm.sizes.map((item) => item.trim()).filter(Boolean)
+
     const normalized: Product = {
       id: editingProductId ?? `PROD-${Date.now()}`,
       ...productForm,
-      name: productForm.name.trim(),
-      description: productForm.description.trim(),
-      material: productForm.material.trim(),
+      category: resolvedCategory,
+      name: normalizedName,
+      description: normalizedDescription,
+      material: normalizedMaterial,
       images: uniqueImageList([productForm.image, ...productForm.images]),
-      image: productForm.image.trim() || productForm.images[0]?.trim() || initialProducts[0].image,
+      image: productForm.image.trim() || productForm.images[0]?.trim() || fallbackImage,
       collectionId: productForm.collectionId?.trim() || undefined,
-      colors: productForm.colors.map((item) => item.trim()).filter(Boolean),
-      sizes: productForm.sizes.map((item) => item.trim()).filter(Boolean),
+      colors: normalizedColors.length ? normalizedColors : ['Unique'],
+      sizes: normalizedSizes.length ? normalizedSizes : ['Unique'],
       compareAtPrice: productForm.compareAtPrice || undefined
     }
 
     normalized.images = uniqueImageList([normalized.image, ...normalized.images])
-
-    if (!normalized.name || !normalized.description || !normalized.material || normalized.colors.length === 0) return
 
     void (async () => {
       try {
