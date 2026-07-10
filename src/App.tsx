@@ -38,6 +38,7 @@ import { ProductCardMotion } from './components/motion/ProductCardMotion'
 import { RevealSection } from './components/motion/RevealSection'
 import { ToastNotification } from './components/motion/ToastNotification'
 import {
+  ApiError,
   changeAdminPassword as changeAdminPasswordRequest,
   createCollection as createCollectionRequest,
   createMessage as createMessageRequest,
@@ -373,15 +374,15 @@ function adminHeading(path: AdminPath) {
 
 export default function App() {
   const cachedPublicBootstrap = readPublicBootstrapCache()
-  const [collections, setCollections] = useState<Collection[]>(cachedPublicBootstrap?.collections ?? [])
-  const [products, setProducts] = useState<Product[]>(cachedPublicBootstrap?.products ?? [])
+  const [collections, setCollections] = useState<Collection[]>([])
+  const [products, setProducts] = useState<Product[]>([])
   const [orders, setOrders] = useState<Order[]>([])
-  const [reviews, setReviews] = useState<Review[]>(cachedPublicBootstrap?.reviews ?? [])
+  const [reviews, setReviews] = useState<Review[]>([])
   const [deletedCollections, setDeletedCollections] = useState<Collection[]>([])
   const [deletedProducts, setDeletedProducts] = useState<Product[]>([])
   const [deletedReviews, setDeletedReviews] = useState<Review[]>([])
   const [messages, setMessages] = useState<ContactMessage[]>([])
-  const [shippingRates, setShippingRates] = useState<ShippingRates>(cachedPublicBootstrap?.shippingRates ?? shippingByCommune)
+  const [shippingRates, setShippingRates] = useState<ShippingRates>(shippingByCommune)
   const [cart, setCart] = useLocalStorage<CartItem[]>('yele-cart', [])
 
   const [path, setPath] = useState(currentPathname)
@@ -429,7 +430,7 @@ export default function App() {
   const [adminColorsOpen, setAdminColorsOpen] = useState(false)
   const [isDatabaseReady, setIsDatabaseReady] = useState(false)
   const [adminAuthResolved, setAdminAuthResolved] = useState(false)
-  const [isPublicBootstrapResolved, setIsPublicBootstrapResolved] = useState(Boolean(cachedPublicBootstrap))
+  const [isPublicBootstrapResolved, setIsPublicBootstrapResolved] = useState(false)
   const galleryInputRef = useRef<HTMLInputElement | null>(null)
   const cameraInputRef = useRef<HTMLInputElement | null>(null)
   const galleryVideoInputRef = useRef<HTMLInputElement | null>(null)
@@ -1316,6 +1317,16 @@ export default function App() {
         navigate('/admin/dashboard', { replace: true })
       } catch (error) {
         console.error(error)
+        if (error instanceof ApiError) {
+          if (error.status === 401) {
+            setLoginError('Identifiants invalides. Verifiez votre email et votre mot de passe.')
+            return
+          }
+
+          setLoginError(error.message)
+          return
+        }
+
         setLoginError('Connexion impossible. Verifiez la base admin ou relancez le service API.')
       }
     })()

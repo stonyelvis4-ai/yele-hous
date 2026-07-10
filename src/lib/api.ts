@@ -2,6 +2,16 @@ import { Collection, ContactMessage, Order, OrderStatus, Product, Review, Shippi
 
 const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? '/api'
 
+export class ApiError extends Error {
+  status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {
     credentials: 'include',
@@ -13,7 +23,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   })
 
   if (!response.ok) {
-    throw new Error(`API request failed for ${path}`)
+    let message = `API request failed for ${path}`
+
+    try {
+      const payload = (await response.json()) as { error?: string; message?: string }
+      message = payload.error ?? payload.message ?? message
+    } catch {
+      // Keep the default message when the response body is empty or invalid.
+    }
+
+    throw new ApiError(message, response.status)
   }
 
   if (response.status === 204) {
