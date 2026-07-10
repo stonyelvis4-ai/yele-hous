@@ -509,6 +509,7 @@ export default function App() {
         console.error(error)
         if (ignore) return
         setIsDatabaseReady(false)
+        const isAdminPath = path.startsWith('/admin')
         if (!path.startsWith('/admin')) {
           const fallbackBootstrap = readPublicBootstrapCache()
 
@@ -534,7 +535,9 @@ export default function App() {
           setOrders(initialOrders)
           setMessages(initialMessages)
         }
-        showToast('Mode local actif', 'La base ou la session admin n est pas joignable. L interface garde les donnees de demo.')
+        if (isAdminPath) {
+          showToast('Mode local actif', 'La base ou la session admin n est pas joignable. L interface garde les donnees de demo.')
+        }
       }
     }
 
