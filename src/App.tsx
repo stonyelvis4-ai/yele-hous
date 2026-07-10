@@ -3832,7 +3832,7 @@ export default function App() {
               >
                 {communeOptions.map((item) => (
                   <option key={item} value={item} className="bg-white text-[#241f2b]">
-                    {item} ({shippingByCommune[item].toLocaleString('fr-FR')} FCFA)
+                    {item} ({(shippingRates[item] ?? 0).toLocaleString('fr-FR')} FCFA)
                   </option>
                 ))}
               </select>

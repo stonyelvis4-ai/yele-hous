@@ -35,6 +35,24 @@ if (!ADMIN_TOKEN_SECRET) {
 
 const pool = new Pool({ connectionString: DATABASE_URL })
 const app = express()
+const allowedCategories = new Set(['Vetements', 'Sacs', 'Parfums', 'Accessoires'])
+const allowedOrderStatuses = new Set(['En attente', 'Livree', 'Annulee'])
+const idPattern = /^[A-Za-z0-9-]+$/
+const mediaUrlPattern = /^https?:\/\//i
+const imageDataUrlPattern = /^data:image\/[a-zA-Z0-9.+-]+;base64,/i
+const videoDataUrlPattern = /^data:video\/[a-zA-Z0-9.+-]+;base64,/i
+const MAX_URL_LENGTH = 2048
+const MAX_IMAGE_DATA_URL_LENGTH = 2_500_000
+const MAX_VIDEO_DATA_URL_LENGTH = 12_500_000
+const MAX_NAME_LENGTH = 160
+const MAX_SLUG_LENGTH = 180
+const MAX_DESCRIPTION_LENGTH = 3000
+const MAX_MATERIAL_LENGTH = 500
+const MAX_TOPIC_LENGTH = 180
+const MAX_MESSAGE_LENGTH = 4000
+const MAX_PHONE_LENGTH = 40
+const MAX_COLOR_OR_SIZE_LENGTH = 80
+const MAX_MEDIA_LIST_LENGTH = 12
 const defaultShippingRates = {
   Cocody: 5000,
   Plateau: 4500,
@@ -277,6 +295,84 @@ function mapMessage(row) {
   }
 }
 
+function createHttpError(message, statusCode = 400) {
+  const error = new Error(message)
+  error.statusCode = statusCode
+  return error
+}
+
+function assert(condition, message, statusCode = 400) {
+  if (!condition) {
+    throw createHttpError(message, statusCode)
+  }
+}
+
+function normalizeText(value, { field, required = false, maxLength = 255 } = {}) {
+  const normalized = String(value ?? '').trim()
+  if (required) {
+    assert(normalized.length > 0, `${field} is required.`)
+  }
+  assert(normalized.length <= maxLength, `${field} is too long.`)
+  return normalized
+}
+
+function normalizeIdentifier(value, field) {
+  const normalized = normalizeText(value, { field, required: true, maxLength: 120 })
+  assert(idPattern.test(normalized), `${field} contains invalid characters.`)
+  return normalized
+}
+
+function normalizeMediaField(value, { field, allowEmpty = true, video = false } = {}) {
+  const normalized = String(value ?? '').trim()
+
+  if (!normalized) {
+    assert(allowEmpty, `${field} is required.`)
+    return ''
+  }
+
+  const maxLength = video ? MAX_VIDEO_DATA_URL_LENGTH : MAX_IMAGE_DATA_URL_LENGTH
+  const validDataUrl = video ? videoDataUrlPattern.test(normalized) : imageDataUrlPattern.test(normalized)
+  const validRemoteUrl = mediaUrlPattern.test(normalized) && normalized.length <= MAX_URL_LENGTH
+
+  assert(validDataUrl || validRemoteUrl, `${field} must be a valid media URL.`)
+  assert(normalized.length <= maxLength, `${field} is too large.`)
+
+  return normalized
+}
+
+function normalizeArrayOfLabels(value, field) {
+  assert(Array.isArray(value), `${field} must be a list.`)
+  const normalized = value
+    .map((item) => normalizeText(item, { field, required: true, maxLength: MAX_COLOR_OR_SIZE_LENGTH }))
+    .filter(Boolean)
+
+  assert(normalized.length > 0, `${field} must contain at least one item.`)
+  assert(normalized.length <= MAX_MEDIA_LIST_LENGTH, `${field} contains too many items.`)
+  return normalized
+}
+
+function validatePrice(value, field, { allowNull = false } = {}) {
+  if (allowNull && (value === null || value === undefined || value === '')) {
+    return null
+  }
+
+  const normalized = Number(value)
+  assert(Number.isFinite(normalized) && normalized >= 0, `${field} is invalid.`)
+  return normalized
+}
+
+function validateStock(value) {
+  const normalized = Number(value)
+  assert(Number.isInteger(normalized) && normalized >= 0, 'Stock is invalid.')
+  return normalized
+}
+
+function validateCommune(value) {
+  const normalized = normalizeText(value, { field: 'Commune', required: true, maxLength: 80 })
+  assert(Object.prototype.hasOwnProperty.call(defaultShippingRates, normalized), 'Commune is invalid.')
+  return normalized
+}
+
 async function listProducts({ onlyDeleted = false, includeDeleted = false } = {}) {
   const conditions = []
   if (onlyDeleted) conditions.push('deleted_at is not null')
@@ -439,40 +535,101 @@ async function listOrders() {
 }
 
 function normalizeProductBody(body) {
-  const images = Array.isArray(body.images) ? body.images.map((item) => String(item).trim()).filter(Boolean) : []
-  const image = String(body.image ?? '').trim()
-  const normalizedImages = [image, ...images].filter(Boolean).filter((item, index, list) => list.indexOf(item) === index)
+  const image = normalizeMediaField(body.image, { field: 'Image', allowEmpty: false })
+  const rawImages = Array.isArray(body.images) ? body.images : []
+  const normalizedImages = [image, ...rawImages.map((item) => normalizeMediaField(item, { field: 'Images[]', allowEmpty: false }))]
+    .filter(Boolean)
+    .filter((item, index, list) => list.indexOf(item) === index)
+
   return {
-    id: String(body.id ?? '').trim(),
-    name: String(body.name ?? '').trim(),
-    category: String(body.category ?? 'Vetements').trim(),
-    collectionId: String(body.collectionId ?? '').trim() || null,
-    price: Number(body.price ?? 0),
-    compareAtPrice:
-      body.compareAtPrice === undefined || body.compareAtPrice === null || body.compareAtPrice === ''
-        ? null
-        : Number(body.compareAtPrice),
-    description: String(body.description ?? '').trim(),
-    material: String(body.material ?? '').trim(),
-    colors: Array.isArray(body.colors) ? body.colors.map((item) => String(item).trim()).filter(Boolean) : [],
-    sizes: Array.isArray(body.sizes) ? body.sizes.map((item) => String(item).trim()).filter(Boolean) : [],
-    stock: Number(body.stock ?? 0),
+    id: normalizeIdentifier(body.id, 'Product id'),
+    name: normalizeText(body.name, { field: 'Product name', required: true, maxLength: MAX_NAME_LENGTH }),
+    category: (() => {
+      const normalized = normalizeText(body.category ?? 'Vetements', { field: 'Category', required: true, maxLength: 32 })
+      assert(allowedCategories.has(normalized), 'Category is invalid.')
+      return normalized
+    })(),
+    collectionId: body.collectionId ? normalizeIdentifier(body.collectionId, 'Collection id') : null,
+    price: validatePrice(body.price, 'Price'),
+    compareAtPrice: validatePrice(body.compareAtPrice, 'Compare at price', { allowNull: true }),
+    description: normalizeText(body.description, { field: 'Description', required: true, maxLength: MAX_DESCRIPTION_LENGTH }),
+    material: normalizeText(body.material, { field: 'Material', required: true, maxLength: MAX_MATERIAL_LENGTH }),
+    colors: normalizeArrayOfLabels(body.colors, 'Colors'),
+    sizes: normalizeArrayOfLabels(body.sizes, 'Sizes'),
+    stock: validateStock(body.stock),
     isBestSeller: Boolean(body.isBestSeller),
-    image: image || normalizedImages[0] || '',
+    image,
     images: normalizedImages,
-    video: String(body.video ?? '').trim() || null
+    video: normalizeMediaField(body.video, { field: 'Video', allowEmpty: true, video: true }) || null
   }
 }
 
 function normalizeCollectionBody(body) {
+  const name = normalizeText(body.name, { field: 'Collection name', required: true, maxLength: MAX_NAME_LENGTH })
+  const slug = normalizeText(body.slug, { field: 'Collection slug', required: true, maxLength: MAX_SLUG_LENGTH })
+  assert(idPattern.test(slug), 'Collection slug contains invalid characters.')
+
   return {
-    id: String(body.id ?? '').trim(),
-    name: String(body.name ?? '').trim(),
-    slug: String(body.slug ?? '').trim(),
-    description: String(body.description ?? '').trim(),
-    image: String(body.image ?? '').trim(),
-    video: String(body.video ?? '').trim() || null,
+    id: normalizeIdentifier(body.id, 'Collection id'),
+    name,
+    slug,
+    description: normalizeText(body.description, { field: 'Collection description', required: true, maxLength: MAX_DESCRIPTION_LENGTH }),
+    image: normalizeMediaField(body.image, { field: 'Collection image', allowEmpty: false }),
+    video: normalizeMediaField(body.video, { field: 'Collection video', allowEmpty: true, video: true }) || null,
     isFeatured: Boolean(body.isFeatured)
+  }
+}
+
+function normalizeReviewBody(body) {
+  return {
+    id: normalizeIdentifier(body.id, 'Review id'),
+    author: normalizeText(body.author, { field: 'Author', required: true, maxLength: MAX_NAME_LENGTH }),
+    rating: (() => {
+      const normalized = Number(body.rating)
+      assert(Number.isInteger(normalized) && normalized >= 1 && normalized <= 5, 'Rating is invalid.')
+      return normalized
+    })(),
+    title: normalizeText(body.title, { field: 'Review title', required: true, maxLength: 180 }),
+    body: normalizeText(body.body, { field: 'Review body', required: true, maxLength: MAX_MESSAGE_LENGTH }),
+    createdAt: String(body.createdAt ?? new Date().toISOString()).trim()
+  }
+}
+
+function normalizeMessageBody(body) {
+  return {
+    id: normalizeIdentifier(body.id, 'Message id'),
+    name: normalizeText(body.name, { field: 'Name', required: true, maxLength: MAX_NAME_LENGTH }),
+    phone: normalizeText(body.phone, { field: 'Phone', required: true, maxLength: MAX_PHONE_LENGTH }),
+    topic: normalizeText(body.topic, { field: 'Topic', required: true, maxLength: MAX_TOPIC_LENGTH }),
+    message: normalizeText(body.message, { field: 'Message', required: true, maxLength: MAX_MESSAGE_LENGTH }),
+    isRead: Boolean(body.isRead),
+    createdAt: String(body.createdAt ?? new Date().toISOString()).trim()
+  }
+}
+
+function normalizeOrderBody(body) {
+  const items = Array.isArray(body.items) ? body.items : []
+  assert(items.length > 0, 'Order must contain at least one item.')
+
+  return {
+    id: normalizeIdentifier(body.id, 'Order id'),
+    customerName: normalizeText(body.customerName, { field: 'Customer name', required: true, maxLength: MAX_NAME_LENGTH }),
+    phone: normalizeText(body.phone, { field: 'Phone', required: true, maxLength: MAX_PHONE_LENGTH }),
+    commune: validateCommune(body.commune),
+    notes: normalizeText(body.notes ?? '', { field: 'Notes', required: false, maxLength: 500 }),
+    items: items.map((item, index) => ({
+      productId: normalizeIdentifier(item?.productId, `Order item ${index + 1} product id`),
+      color: normalizeText(item?.color ?? 'Unique', { field: `Order item ${index + 1} color`, required: true, maxLength: MAX_COLOR_OR_SIZE_LENGTH }),
+      size: normalizeText(item?.size ?? 'Unique', { field: `Order item ${index + 1} size`, required: true, maxLength: MAX_COLOR_OR_SIZE_LENGTH }),
+      quantity: (() => {
+        const normalized = Number(item?.quantity)
+        assert(Number.isInteger(normalized) && normalized > 0 && normalized <= 20, `Order item ${index + 1} quantity is invalid.`)
+        return normalized
+      })(),
+      image: normalizeMediaField(item?.image ?? '', { field: `Order item ${index + 1} image`, allowEmpty: true })
+    })),
+    status: allowedOrderStatuses.has(String(body.status ?? '').trim()) ? String(body.status).trim() : 'En attente',
+    createdAt: String(body.createdAt ?? new Date().toISOString()).trim()
   }
 }
 
@@ -818,7 +975,7 @@ app.post('/api/products/:id/restore', requireAdminApiAuth, async (req, res) => {
 })
 
 app.post('/api/orders', publicWriteRateLimiter, async (req, res) => {
-  const order = req.body
+  const order = normalizeOrderBody(req.body)
   const client = await pool.connect()
 
   try {
@@ -883,7 +1040,7 @@ app.patch('/api/orders/:id/status', requireAdminApiAuth, async (req, res) => {
 })
 
 app.post('/api/reviews', publicWriteRateLimiter, async (req, res) => {
-  const review = req.body
+  const review = normalizeReviewBody(req.body)
   await pool.query(
     'insert into reviews (id, author, rating, title, body, created_at) values ($1,$2,$3,$4,$5,$6)',
     [review.id, review.author, review.rating, review.title, review.body, review.createdAt]
@@ -925,7 +1082,7 @@ app.post('/api/reviews/:id/restore', requireAdminApiAuth, async (req, res) => {
 })
 
 app.post('/api/messages', publicWriteRateLimiter, async (req, res) => {
-  const message = req.body
+  const message = normalizeMessageBody(req.body)
   await pool.query(
     'insert into messages (id, name, phone, topic, message, is_read, created_at) values ($1,$2,$3,$4,$5,$6,$7)',
     [message.id, message.name, message.phone, message.topic, message.message, message.isRead, message.createdAt]
