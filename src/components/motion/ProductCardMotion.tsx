@@ -1,5 +1,5 @@
-import { motion } from 'motion/react'
-import { useState } from 'react'
+import { motion, useInView } from 'motion/react'
+import { useRef, useState } from 'react'
 import { AnimatedBadge } from './AnimatedBadge'
 import { productCardGlowVariants, productCardImageVariants, productCardVariants, subtleHoverTransition } from '../../lib/motion'
 import { productFallbackImage } from '../../lib/imageFallbacks'
@@ -45,6 +45,8 @@ export function ProductCardMotion({
   onPreview,
   onAdd
 }: ProductCardMotionProps) {
+  const mediaRef = useRef<HTMLButtonElement | null>(null)
+  const isMediaVisible = useInView(mediaRef, { once: false, amount: 0.25 })
   const [imageSrc, setImageSrc] = useState(image || productFallbackImage(category))
 
   return (
@@ -63,17 +65,17 @@ export function ProductCardMotion({
         transition={subtleHoverTransition}
       />
 
-      <button type="button" onClick={onPreview} className="relative block w-full overflow-hidden text-left">
+      <button ref={mediaRef} type="button" onClick={onPreview} className="relative block w-full overflow-hidden text-left">
         {video ? (
           <motion.video
-            src={video}
+            src={isMediaVisible ? video : undefined}
             poster={imageSrc}
             className="product-image"
-            autoPlay
+            autoPlay={isMediaVisible}
             muted
             loop
             playsInline
-            preload="metadata"
+            preload={isMediaVisible ? 'metadata' : 'none'}
             variants={productCardImageVariants}
             transition={subtleHoverTransition}
           />
@@ -82,6 +84,8 @@ export function ProductCardMotion({
             src={imageSrc}
             alt={title}
             className="product-image"
+            loading="lazy"
+            decoding="async"
             onError={() => setImageSrc(productFallbackImage(category))}
             variants={productCardImageVariants}
             transition={subtleHoverTransition}

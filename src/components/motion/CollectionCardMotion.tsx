@@ -1,7 +1,7 @@
 import type { Transition, Variants } from 'motion/react'
-import { motion } from 'motion/react'
+import { motion, useInView } from 'motion/react'
 import { ArrowRight } from 'lucide-react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { premiumEase } from '../../lib/motion'
 import { collectionFallbackImage } from '../../lib/imageFallbacks'
 
@@ -66,6 +66,8 @@ const collectionTransition: Transition = {
 }
 
 export function CollectionCardMotion({ title, copy, image, video }: CollectionCardMotionProps) {
+  const mediaRef = useRef<HTMLDivElement | null>(null)
+  const isMediaVisible = useInView(mediaRef, { once: false, amount: 0.35 })
   const [imageSrc, setImageSrc] = useState(image || collectionFallbackImage)
 
   return (
@@ -85,30 +87,31 @@ export function CollectionCardMotion({ title, copy, image, video }: CollectionCa
         transition={collectionTransition}
       />
 
-      <div className="relative overflow-hidden">
+      <div ref={mediaRef} className="relative overflow-hidden">
         {video ? (
           <motion.video
-            src={video}
+            src={isMediaVisible ? video : undefined}
             poster={imageSrc}
             className="feature-card-image"
-            autoPlay
+            autoPlay={isMediaVisible}
             muted
             loop
             playsInline
-            preload="metadata"
-            variants={collectionImageVariants}
-            transition={collectionTransition}
-          />
-        ) : (
-          <motion.img
-            src={imageSrc}
-            alt={title}
-            className="feature-card-image"
-            onError={() => setImageSrc(collectionFallbackImage)}
-            variants={collectionImageVariants}
-            transition={collectionTransition}
-          />
-        )}
+            preload={isMediaVisible ? 'metadata' : 'none'}
+          variants={collectionImageVariants}
+          transition={collectionTransition}
+        />
+      ) : (
+        <motion.img
+          src={imageSrc}
+          alt={title}
+          className="feature-card-image"
+          decoding="async"
+          onError={() => setImageSrc(collectionFallbackImage)}
+          variants={collectionImageVariants}
+          transition={collectionTransition}
+        />
+      )}
       </div>
 
       <div className="feature-card-body">
