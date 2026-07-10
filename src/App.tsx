@@ -415,6 +415,8 @@ export default function App() {
   const [settingsPasswordSuccess, setSettingsPasswordSuccess] = useState('')
   const [shippingForm, setShippingForm] = useState<ShippingRates>(shippingByCommune)
   const [shippingSettingsMessage, setShippingSettingsMessage] = useState('')
+  const [productSuccessMessage, setProductSuccessMessage] = useState('')
+  const [collectionSuccessMessage, setCollectionSuccessMessage] = useState('')
   const [showSettingsPasswords, setShowSettingsPasswords] = useState({
     current: false,
     next: false,
@@ -443,6 +445,26 @@ export default function App() {
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
   }, [])
+
+  useEffect(() => {
+    if (!productSuccessMessage) return
+
+    const timeout = window.setTimeout(() => {
+      setProductSuccessMessage('')
+    }, 4500)
+
+    return () => window.clearTimeout(timeout)
+  }, [productSuccessMessage])
+
+  useEffect(() => {
+    if (!collectionSuccessMessage) return
+
+    const timeout = window.setTimeout(() => {
+      setCollectionSuccessMessage('')
+    }, 4500)
+
+    return () => window.clearTimeout(timeout)
+  }, [collectionSuccessMessage])
 
   useEffect(() => {
     let ignore = false
@@ -982,6 +1004,7 @@ export default function App() {
 
   const saveProduct = (event: FormEvent) => {
     event.preventDefault()
+    const isEditingProduct = Boolean(editingProductId)
 
     const resolvedCategory = productForm.category ?? 'Vetements'
     const fallbackImage = productFallbackImage(resolvedCategory)
@@ -1032,9 +1055,15 @@ export default function App() {
         setAdminCustomColor('')
         setAdminGalleryImageInput(emptyGalleryImageInput)
         setAdminColorsOpen(false)
-        showToast(editingProductId ? 'Produit mis a jour' : 'Produit ajoute', 'Le catalogue premium a ete synchronise.')
+        setProductSuccessMessage(
+          isEditingProduct
+            ? `Le produit "${savedProduct.name}" a bien ete mis a jour.`
+            : `Le produit "${savedProduct.name}" a bien ete ajoute a la boutique.`
+        )
+        showToast(isEditingProduct ? 'Produit mis a jour' : 'Produit ajoute', 'Le catalogue premium a ete synchronise.')
       } catch (error) {
         console.error(error)
+        setProductSuccessMessage('')
         showToast('Echec de sauvegarde', 'Impossible d enregistrer le produit pour le moment.')
       }
     })()
@@ -1162,7 +1191,8 @@ export default function App() {
 
   const startEditingProduct = (product: Product) => {
     setEditingProductId(product.id)
-        setProductForm({
+    setProductSuccessMessage('')
+    setProductForm({
       name: product.name,
       category: product.category,
       collectionId: product.collectionId ?? '',
@@ -1186,6 +1216,7 @@ export default function App() {
 
   const saveCollection = (event: FormEvent) => {
     event.preventDefault()
+    const isEditingCollection = Boolean(editingCollectionId)
 
     const normalized: Collection = {
       id: editingCollectionId ?? `COL-${Date.now()}`,
@@ -1221,9 +1252,15 @@ export default function App() {
 
         setEditingCollectionId(null)
         setCollectionForm(emptyCollectionForm)
-        showToast(editingCollectionId ? 'Collection mise a jour' : 'Collection ajoutee', 'La vitrine peut maintenant l utiliser.')
+        setCollectionSuccessMessage(
+          isEditingCollection
+            ? `La collection "${savedCollection.name}" a bien ete mise a jour.`
+            : `La collection "${savedCollection.name}" a bien ete ajoutee a la vitrine.`
+        )
+        showToast(isEditingCollection ? 'Collection mise a jour' : 'Collection ajoutee', 'La vitrine peut maintenant l utiliser.')
       } catch (error) {
         console.error(error)
+        setCollectionSuccessMessage('')
         showToast('Echec de sauvegarde', 'Impossible d enregistrer la collection pour le moment.')
       }
     })()
@@ -1231,6 +1268,7 @@ export default function App() {
 
   const startEditingCollection = (collection: Collection) => {
     setEditingCollectionId(collection.id)
+    setCollectionSuccessMessage('')
     setCollectionForm({
       name: collection.name,
       slug: collection.slug,
@@ -2190,6 +2228,7 @@ export default function App() {
                       onClick={() => {
                         setEditingProductId(null)
                         setProductForm(emptyProductForm)
+                        setProductSuccessMessage('')
                       }}
                       className="secondary-button"
                     >
@@ -2197,6 +2236,12 @@ export default function App() {
                     </button>
                   ) : null}
                 </div>
+
+                {productSuccessMessage ? (
+                  <p className="rounded-[18px] border border-[#cde6d6] bg-[#f4fff7] px-4 py-3 text-sm text-[#16825d]">
+                    {productSuccessMessage}
+                  </p>
+                ) : null}
               </form>
 
               <div className="mt-6 space-y-3">
@@ -2421,6 +2466,7 @@ export default function App() {
                         onClick={() => {
                           setEditingCollectionId(null)
                           setCollectionForm(emptyCollectionForm)
+                          setCollectionSuccessMessage('')
                         }}
                         className="secondary-button"
                       >
@@ -2428,6 +2474,12 @@ export default function App() {
                       </button>
                     ) : null}
                   </div>
+
+                  {collectionSuccessMessage ? (
+                    <p className="rounded-[18px] border border-[#cde6d6] bg-[#f4fff7] px-4 py-3 text-sm text-[#16825d]">
+                      {collectionSuccessMessage}
+                    </p>
+                  ) : null}
                 </form>
 
                 <div className="mt-6 grid gap-4 lg:grid-cols-2">
