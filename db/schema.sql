@@ -135,14 +135,6 @@ CREATE INDEX IF NOT EXISTS idx_reviews_deleted_at ON reviews(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_messages_is_read ON messages(is_read);
 CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at DESC);
 
-INSERT INTO admin_users (email, password_hash, full_name)
-VALUES (
-  'admin@yelehouse.com',
-  crypt('Admin@2026', gen_salt('bf')),
-  'Administrateur Yele House'
-)
-ON CONFLICT (email) DO NOTHING;
-
 INSERT INTO collections (id, name, slug, description, image, is_featured)
 VALUES
   (

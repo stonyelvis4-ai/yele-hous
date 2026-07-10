@@ -2,14 +2,35 @@ import cors from 'cors'
 import crypto from 'crypto'
 import express from 'express'
 import pg from 'pg'
+import { URL } from 'url'
 
 const { Pool } = pg
 
 const DATABASE_URL = process.env.DATABASE_URL
-const ADMIN_TOKEN_SECRET = process.env.ADMIN_TOKEN_SECRET ?? 'yele-house-admin-secret'
+const isProductionRuntime = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1'
+const configuredAdminTokenSecret = process.env.ADMIN_TOKEN_SECRET?.trim()
+const ADMIN_TOKEN_SECRET =
+  configuredAdminTokenSecret || (isProductionRuntime ? '' : crypto.randomBytes(32).toString('hex'))
+const explicitAllowedOrigins = (process.env.CORS_ALLOWED_ORIGINS ?? '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean)
+const appOrigins = new Set(
+  [
+    'https://yele-house.vercel.app',
+    process.env.APP_ORIGIN?.trim(),
+    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
+    ...explicitAllowedOrigins
+  ].filter(Boolean)
+)
+const rateLimitStore = new Map()
 
 if (!DATABASE_URL) {
   throw new Error('DATABASE_URL is required to start the API server.')
+}
+
+if (!ADMIN_TOKEN_SECRET) {
+  throw new Error('ADMIN_TOKEN_SECRET is required in production.')
 }
 
 const pool = new Pool({ connectionString: DATABASE_URL })
@@ -55,31 +76,76 @@ const defaultCollections = [
 function resolveCorsOrigin(origin) {
   if (!origin) return true
 
-  if (
-    origin.startsWith('http://localhost:') ||
-    origin.startsWith('http://127.0.0.1:') ||
-    origin.startsWith('https://localhost:') ||
-    origin.startsWith('https://127.0.0.1:')
-  ) {
-    return true
-  }
+  try {
+    const parsedOrigin = new URL(origin)
+    if (parsedOrigin.hostname === 'localhost' || parsedOrigin.hostname === '127.0.0.1') {
+      return true
+    }
 
-  if (origin.includes('.vercel.app')) {
-    return true
+    return appOrigins.has(`${parsedOrigin.protocol}//${parsedOrigin.host}`)
+  } catch {
+    return false
   }
-
-  return true
 }
 
 app.use(
   cors({
     origin(origin, callback) {
-      callback(null, resolveCorsOrigin(origin))
+      const allowed = resolveCorsOrigin(origin)
+      callback(allowed ? null : new Error('Origin not allowed by CORS'), allowed)
     },
     credentials: true
   })
 )
 app.use(express.json({ limit: '20mb' }))
+
+function getClientAddress(req) {
+  const forwarded = req.headers['x-forwarded-for']
+  if (typeof forwarded === 'string' && forwarded.trim()) {
+    return forwarded.split(',')[0].trim()
+  }
+
+  if (Array.isArray(forwarded) && forwarded.length) {
+    return forwarded[0]
+  }
+
+  return req.socket.remoteAddress ?? 'unknown'
+}
+
+function createRateLimiter({ keyPrefix, limit, windowMs }) {
+  return (req, res, next) => {
+    const now = Date.now()
+    const clientAddress = getClientAddress(req)
+    const key = `${keyPrefix}:${clientAddress}`
+    const current = rateLimitStore.get(key)
+
+    if (!current || current.resetAt <= now) {
+      rateLimitStore.set(key, { count: 1, resetAt: now + windowMs })
+      return next()
+    }
+
+    if (current.count >= limit) {
+      res.setHeader('Retry-After', Math.ceil((current.resetAt - now) / 1000))
+      return res.status(429).json({ error: 'Too many requests. Please retry later.' })
+    }
+
+    current.count += 1
+    rateLimitStore.set(key, current)
+    next()
+  }
+}
+
+const adminLoginRateLimiter = createRateLimiter({
+  keyPrefix: 'admin-login',
+  limit: 5,
+  windowMs: 10 * 60 * 1000
+})
+
+const publicWriteRateLimiter = createRateLimiter({
+  keyPrefix: 'public-write',
+  limit: 20,
+  windowMs: 10 * 60 * 1000
+})
 
 function createAdminToken(admin) {
   const payload = {
@@ -127,14 +193,16 @@ function getCookieToken(req) {
 }
 
 function setAdminSessionCookie(res, token) {
+  const secureFlag = isProductionRuntime ? '; Secure' : ''
   res.setHeader(
     'Set-Cookie',
-    `yele_admin_session=${encodeURIComponent(token)}; HttpOnly; Path=/; Max-Age=43200; SameSite=Lax`
+    `yele_admin_session=${encodeURIComponent(token)}; HttpOnly; Path=/; Max-Age=43200; SameSite=Lax${secureFlag}`
   )
 }
 
 function clearAdminSessionCookie(res) {
-  res.setHeader('Set-Cookie', 'yele_admin_session=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax')
+  const secureFlag = isProductionRuntime ? '; Secure' : ''
+  res.setHeader('Set-Cookie', `yele_admin_session=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax${secureFlag}`)
 }
 
 function requireAdminApiAuth(req, res, next) {
@@ -452,7 +520,7 @@ app.get('/api/admin/bootstrap', requireAdminApiAuth, async (_req, res) => {
   })
 })
 
-app.post('/api/admin/login', async (req, res) => {
+app.post('/api/admin/login', adminLoginRateLimiter, async (req, res) => {
   const email = String(req.body.email ?? '').trim().toLowerCase()
   const password = String(req.body.password ?? '').trim()
 
@@ -749,7 +817,7 @@ app.post('/api/products/:id/restore', requireAdminApiAuth, async (req, res) => {
   res.json(mapProduct(rows[0]))
 })
 
-app.post('/api/orders', async (req, res) => {
+app.post('/api/orders', publicWriteRateLimiter, async (req, res) => {
   const order = req.body
   const client = await pool.connect()
 
@@ -814,7 +882,7 @@ app.patch('/api/orders/:id/status', requireAdminApiAuth, async (req, res) => {
   res.json(orders.find((entry) => entry.id === req.params.id))
 })
 
-app.post('/api/reviews', async (req, res) => {
+app.post('/api/reviews', publicWriteRateLimiter, async (req, res) => {
   const review = req.body
   await pool.query(
     'insert into reviews (id, author, rating, title, body, created_at) values ($1,$2,$3,$4,$5,$6)',
@@ -856,7 +924,7 @@ app.post('/api/reviews/:id/restore', requireAdminApiAuth, async (req, res) => {
   res.json(mapReview(rows[0]))
 })
 
-app.post('/api/messages', async (req, res) => {
+app.post('/api/messages', publicWriteRateLimiter, async (req, res) => {
   const message = req.body
   await pool.query(
     'insert into messages (id, name, phone, topic, message, is_read, created_at) values ($1,$2,$3,$4,$5,$6,$7)',
