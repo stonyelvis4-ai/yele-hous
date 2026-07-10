@@ -30,6 +30,7 @@ import {
 } from 'lucide-react'
 import { ChangeEvent, FormEvent, SyntheticEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatedBadge } from './components/motion/AnimatedBadge'
+import { SmartMedia } from './components/SmartMedia'
 import { CollectionCardMotion } from './components/motion/CollectionCardMotion'
 import { CartDrawer } from './components/motion/CartDrawer'
 import { AnimatedModal } from './components/motion/AnimatedModal'
@@ -1725,25 +1726,13 @@ export default function App() {
                   <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
                     {recentCollections.map((collection) => (
                       <div key={collection.id} className="rounded-[22px] border border-[#dfd3e4] bg-[#fffdfd] p-4">
-                        {collection.video ? (
-                          <video
-                            src={collection.video}
-                            poster={collection.image}
-                            className="h-44 w-full rounded-[18px] object-cover"
-                            autoPlay
-                            muted
-                            loop
-                            playsInline
-                            preload="metadata"
-                          />
-                        ) : (
-                          <img
-                            src={collection.image}
-                            alt={collection.name}
-                            className="h-44 w-full rounded-[18px] object-cover"
-                            onError={(event) => applyImageFallback(event, collectionFallbackImage)}
-                          />
-                        )}
+                        <SmartMedia
+                          image={collection.image}
+                          video={collection.video}
+                          alt={collection.name}
+                          fallbackImage={collectionFallbackImage}
+                          className="h-44 w-full rounded-[18px] object-cover"
+                        />
                         <div className="mt-4 flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <h3 className="truncate font-semibold text-[#241f2b]">{collection.name}</h3>
@@ -2265,25 +2254,13 @@ export default function App() {
                     className="flex flex-col gap-4 rounded-[22px] border border-[#dfd3e4] bg-[#fffdfd] p-4 lg:flex-row lg:items-center lg:justify-between"
                   >
                     <div className="flex items-center gap-4">
-                      {product.video ? (
-                        <video
-                          src={product.video}
-                          poster={product.image}
-                          className="h-14 w-14 rounded-[16px] object-cover"
-                          autoPlay
-                          muted
-                          loop
-                          playsInline
-                          preload="metadata"
-                        />
-                      ) : (
-                        <img
-                          src={product.image}
-                          alt={product.name}
-                          className="h-14 w-14 rounded-[16px] object-cover"
-                          onError={(event) => applyImageFallback(event, productFallbackImage(product.category))}
-                        />
-                      )}
+                      <SmartMedia
+                        image={product.image}
+                        video={product.video}
+                        alt={product.name}
+                        fallbackImage={productFallbackImage(product.category)}
+                        className="h-14 w-14 rounded-[16px] object-cover"
+                      />
                       <div>
                         <h3 className="font-semibold text-[#241f2b]">{product.name}</h3>
                         <p className="mt-1 text-sm text-[#8a7f95]">
@@ -2500,25 +2477,13 @@ export default function App() {
                   {collections.map((collection) => (
                     <div key={collection.id} className="rounded-[22px] border border-[#dfd3e4] bg-[#fffdfd] p-4">
                     <div className="flex items-start gap-4">
-                        {collection.video ? (
-                          <video
-                            src={collection.video}
-                            poster={collection.image}
-                            className="h-16 w-16 rounded-[16px] object-cover"
-                            autoPlay
-                            muted
-                            loop
-                            playsInline
-                            preload="metadata"
-                          />
-                        ) : (
-                          <img
-                            src={collection.image}
-                            alt={collection.name}
-                            className="h-16 w-16 rounded-[16px] object-cover"
-                            onError={(event) => applyImageFallback(event, collectionFallbackImage)}
-                          />
-                        )}
+                        <SmartMedia
+                          image={collection.image}
+                          video={collection.video}
+                          alt={collection.name}
+                          fallbackImage={collectionFallbackImage}
+                          className="h-16 w-16 rounded-[16px] object-cover"
+                        />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between gap-3">
                             <h3 className="font-semibold text-[#241f2b]">{collection.name}</h3>
@@ -2694,11 +2659,11 @@ export default function App() {
                             className="flex flex-col gap-4 rounded-[22px] border border-[#dfd3e4] bg-[#fffdfd] p-4 lg:flex-row lg:items-center lg:justify-between"
                           >
                             <div className="flex items-center gap-4">
-                              <img
-                                src={product.image}
+                              <SmartMedia
+                                image={product.image}
                                 alt={product.name}
+                                fallbackImage={productFallbackImage(product.category)}
                                 className="h-14 w-14 rounded-[16px] object-cover"
-                                onError={(event) => applyImageFallback(event, productFallbackImage(product.category))}
                               />
                               <div>
                                 <h4 className="font-semibold text-[#241f2b]">{product.name}</h4>
@@ -2740,11 +2705,11 @@ export default function App() {
                             className="flex flex-col gap-4 rounded-[22px] border border-[#dfd3e4] bg-[#fffdfd] p-4 lg:flex-row lg:items-center lg:justify-between"
                           >
                             <div className="flex items-center gap-4">
-                              <img
-                                src={collection.image}
+                              <SmartMedia
+                                image={collection.image}
                                 alt={collection.name}
+                                fallbackImage={collectionFallbackImage}
                                 className="h-14 w-14 rounded-[16px] object-cover"
-                                onError={(event) => applyImageFallback(event, collectionFallbackImage)}
                               />
                               <div>
                                 <h4 className="font-semibold text-[#241f2b]">{collection.name}</h4>
@@ -3191,25 +3156,13 @@ export default function App() {
 
               return (
                 <article key={product.id} className="feature-card">
-                  {product.video ? (
-                    <video
-                      src={product.video}
-                      poster={product.image}
-                      className="feature-card-image"
-                      autoPlay
-                      muted
-                      loop
-                      playsInline
-                      preload="metadata"
-                    />
-                  ) : (
-                    <img
-                      src={product.image}
-                      alt={product.name}
-                      className="feature-card-image"
-                      onError={(event) => applyImageFallback(event, productFallbackImage(product.category))}
-                    />
-                  )}
+                  <SmartMedia
+                    image={product.image}
+                    video={product.video}
+                    alt={product.name}
+                    fallbackImage={productFallbackImage(product.category)}
+                    className="feature-card-image"
+                  />
                   <div className="feature-card-body">
                     <p className="feature-kicker">{copy.kicker}</p>
                     <div className="flex items-start justify-between gap-4">
