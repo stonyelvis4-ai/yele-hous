@@ -61,7 +61,6 @@ import {
   updateProduct as updateProductRequest,
   verifyAdminSession
 } from './lib/api'
-import { initialCollections, initialMessages, initialOrders, initialProducts, initialReviews, shippingByCommune } from './data'
 import { useLocalStorage } from './hooks/useLocalStorage'
 import { getAdminSession, isAdminAuthenticated, loginAdmin, logoutAdmin, syncAdminSession } from './lib/auth'
 import { CartItem, Category, Collection, ContactMessage, Order, OrderStatus, Product, Review, ShippingRates } from './types'
@@ -179,6 +178,14 @@ const emptyToast = { title: '', message: '' }
 const emptyPasswordForm = { currentPassword: '', nextPassword: '', confirmPassword: '' }
 const emptyGalleryImageInput = ''
 const PUBLIC_BOOTSTRAP_CACHE_KEY = 'yele-public-bootstrap-cache-v2'
+const defaultShippingRates: ShippingRates = {
+  Cocody: 5000,
+  Plateau: 4500,
+  Marcory: 3500,
+  DeuxPlateaux: 4000,
+  Zone4: 3000,
+  Yopougon: 6000
+}
 
 type PublicBootstrapCache = {
   collections: Collection[]
@@ -186,6 +193,8 @@ type PublicBootstrapCache = {
   reviews: Review[]
   shippingRates: ShippingRates
 }
+
+type FallbackDataModule = typeof import('./data')
 
 function readPublicBootstrapCache(): PublicBootstrapCache | null {
   if (typeof window === 'undefined') return null
@@ -203,6 +212,10 @@ function readPublicBootstrapCache(): PublicBootstrapCache | null {
 function writePublicBootstrapCache(value: PublicBootstrapCache) {
   if (typeof window === 'undefined') return
   window.localStorage.setItem(PUBLIC_BOOTSTRAP_CACHE_KEY, JSON.stringify(value))
+}
+
+async function loadFallbackData(): Promise<FallbackDataModule> {
+  return import('./data')
 }
 
 function dataUrlByteSize(dataUrl: string) {
@@ -426,15 +439,15 @@ function adminHeading(path: AdminPath) {
 
 export default function App() {
   const cachedPublicBootstrap = readPublicBootstrapCache()
-  const [collections, setCollections] = useState<Collection[]>([])
-  const [products, setProducts] = useState<Product[]>([])
+  const [collections, setCollections] = useState<Collection[]>(cachedPublicBootstrap?.collections ?? [])
+  const [products, setProducts] = useState<Product[]>(cachedPublicBootstrap?.products ?? [])
   const [orders, setOrders] = useState<Order[]>([])
-  const [reviews, setReviews] = useState<Review[]>([])
+  const [reviews, setReviews] = useState<Review[]>(cachedPublicBootstrap?.reviews ?? [])
   const [deletedCollections, setDeletedCollections] = useState<Collection[]>([])
   const [deletedProducts, setDeletedProducts] = useState<Product[]>([])
   const [deletedReviews, setDeletedReviews] = useState<Review[]>([])
   const [messages, setMessages] = useState<ContactMessage[]>([])
-  const [shippingRates, setShippingRates] = useState<ShippingRates>(shippingByCommune)
+  const [shippingRates, setShippingRates] = useState<ShippingRates>(cachedPublicBootstrap?.shippingRates ?? defaultShippingRates)
   const [cart, setCart] = useLocalStorage<CartItem[]>('yele-cart', [])
 
   const [path, setPath] = useState(currentPathname)
@@ -448,7 +461,7 @@ export default function App() {
   const [orderForm, setOrderForm] = useState({
     customerName: '',
     phone: '',
-    commune: Object.keys(shippingByCommune)[0],
+    commune: Object.keys(cachedPublicBootstrap?.shippingRates ?? defaultShippingRates)[0],
     addressLine: '',
     deliveryNotes: ''
   })
@@ -466,7 +479,7 @@ export default function App() {
   const [settingsPasswordForm, setSettingsPasswordForm] = useState(emptyPasswordForm)
   const [settingsPasswordError, setSettingsPasswordError] = useState('')
   const [settingsPasswordSuccess, setSettingsPasswordSuccess] = useState('')
-  const [shippingForm, setShippingForm] = useState<ShippingRates>(shippingByCommune)
+  const [shippingForm, setShippingForm] = useState<ShippingRates>(cachedPublicBootstrap?.shippingRates ?? defaultShippingRates)
   const [shippingSettingsMessage, setShippingSettingsMessage] = useState('')
   const [productSuccessMessage, setProductSuccessMessage] = useState('')
   const [collectionSuccessMessage, setCollectionSuccessMessage] = useState('')
@@ -573,11 +586,13 @@ export default function App() {
             setShippingRates(fallbackBootstrap.shippingRates)
             setShippingForm(fallbackBootstrap.shippingRates)
           } else {
-            setCollections(initialCollections)
-            setProducts(initialProducts)
-            setReviews(initialReviews)
-            setShippingRates(shippingByCommune)
-            setShippingForm(shippingByCommune)
+            const fallbackData = await loadFallbackData()
+            if (ignore) return
+            setCollections(fallbackData.initialCollections)
+            setProducts(fallbackData.initialProducts)
+            setReviews(fallbackData.initialReviews)
+            setShippingRates(fallbackData.shippingByCommune)
+            setShippingForm(fallbackData.shippingByCommune)
           }
 
           setDeletedCollections([])
@@ -585,8 +600,15 @@ export default function App() {
           setDeletedReviews([])
           setIsPublicBootstrapResolved(true)
         } else {
-          setOrders(initialOrders)
-          setMessages(initialMessages)
+          const fallbackData = await loadFallbackData()
+          if (ignore) return
+          setCollections(fallbackData.initialCollections)
+          setProducts(fallbackData.initialProducts)
+          setReviews(fallbackData.initialReviews)
+          setOrders(fallbackData.initialOrders)
+          setMessages(fallbackData.initialMessages)
+          setShippingRates(fallbackData.shippingByCommune)
+          setShippingForm(fallbackData.shippingByCommune)
         }
         if (isAdminPath) {
           showToast('Mode local actif', 'La base ou la session admin n est pas joignable. L interface garde les donnees de demo.')
@@ -999,7 +1021,7 @@ export default function App() {
         setOrderForm({
           customerName: '',
           phone: '',
-          commune: communeOptions[0] ?? Object.keys(shippingByCommune)[0],
+          commune: communeOptions[0] ?? Object.keys(defaultShippingRates)[0],
           addressLine: '',
           deliveryNotes: ''
         })
