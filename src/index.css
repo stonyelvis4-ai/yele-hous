@@ -22,6 +22,13 @@ body {
   box-sizing: border-box;
 }
 
+button,
+select,
+input,
+textarea {
+  touch-action: manipulation;
+}
+
 .editorial-title {
   font-family: 'Cormorant Garamond', Georgia, serif;
 }
@@ -102,6 +109,10 @@ body {
   font-weight: 700;
   letter-spacing: 0.08em;
   transition: 160ms ease;
+  position: relative;
+  z-index: 1;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
 }
 
 .mobile-tab-chip-active {
@@ -118,6 +129,9 @@ body {
     transform 220ms ease,
     color 220ms ease,
     filter 220ms ease;
+  position: relative;
+  z-index: 1;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .icon-button:hover {
@@ -131,6 +145,10 @@ body {
   margin: 0 auto;
   padding-left: 20px;
   padding-right: 20px;
+}
+
+.section-anchor {
+  scroll-margin-top: 168px;
 }
 
 .section-heading {
@@ -376,6 +394,8 @@ body {
   gap: 8px;
   border-radius: 16px;
   transition: 160ms ease;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
 }
 
 .primary-button {
@@ -1151,6 +1171,10 @@ body {
 }
 
 @media (max-width: 768px) {
+  .section-anchor {
+    scroll-margin-top: 214px;
+  }
+
   .section-title {
     font-size: 44px;
   }

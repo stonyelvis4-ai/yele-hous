@@ -1998,7 +1998,7 @@ export default function App() {
           </div>
         </div>
 
-        <div className="border-t border-[#eee5ef] px-5 pb-4 lg:hidden">
+        <div className="relative z-[45] border-t border-[#eee5ef] px-5 pb-4 lg:hidden">
           <div className="mx-auto flex max-w-[1240px] gap-2 overflow-x-auto pt-4 mobile-tabs-scroll">
             {publicNavItems.map((item) => (
               <button
@@ -2019,7 +2019,7 @@ export default function App() {
               initial={{ opacity: 0, y: -12 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -12 }}
-              className="border-t border-[#ecd3e4] bg-[#fdf1f7] px-5 py-4 lg:hidden"
+              className="relative z-[45] border-t border-[#ecd3e4] bg-[#fdf1f7] px-5 py-4 shadow-[0_18px_40px_rgba(189,87,143,0.12)] lg:hidden"
             >
               <div className="mx-auto flex max-w-[1240px] flex-col gap-2">
                 {publicNavItems.map((item) => (
@@ -2082,7 +2082,7 @@ export default function App() {
         </main>
       ) : (
       <main className="border-b border-[#e4d9e8]">
-        <section id="accueil" className="section-shell pb-12 pt-3">
+        <section id="accueil" className="section-shell section-anchor pb-12 pt-3">
           <RevealSection>
           {featuredCollections.length ? (
             <div className="mb-14 grid gap-6 lg:grid-cols-3">
@@ -2134,7 +2134,7 @@ export default function App() {
           </RevealSection>
         </section>
 
-        <section id="boutique" className="section-shell border-t border-[#e4d9e8] py-12">
+        <section id="boutique" className="section-shell section-anchor border-t border-[#e4d9e8] py-12">
           <RevealSection>
           <div className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-wrap items-center gap-3">
@@ -2221,7 +2221,7 @@ export default function App() {
           </RevealSection>
         </section>
 
-        <section id="avis" className="section-shell border-t border-[#e4d9e8] py-12">
+        <section id="avis" className="section-shell section-anchor border-t border-[#e4d9e8] py-12">
           <RevealSection>
           <div className="section-heading">
             <h2 className="section-title">Ce que disent nos Reines</h2>
@@ -2354,7 +2354,7 @@ export default function App() {
           </RevealSection>
         </section>
 
-        <section id="contact" className="section-shell border-t border-[#e4d9e8] py-12">
+        <section id="contact" className="section-shell section-anchor border-t border-[#e4d9e8] py-12">
           <RevealSection>
           <div className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr]">
             <div className="panel-card p-8">
