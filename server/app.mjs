@@ -91,6 +91,42 @@ const defaultCollections = [
   }
 ]
 
+function defaultProductName(category) {
+  if (category === 'Vetements') return 'Nouvel article couture'
+  if (category === 'Sacs') return 'Nouveau sac signature'
+  if (category === 'Parfums') return 'Nouveau parfum signature'
+  return 'Nouvel accessoire signature'
+}
+
+function productFallbackByCategory(category) {
+  if (category === 'Sacs') {
+    return 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=1200&q=80'
+  }
+  if (category === 'Parfums') {
+    return 'https://images.unsplash.com/photo-1594035910387-fea47794261f?auto=format&fit=crop&w=1200&q=80'
+  }
+  if (category === 'Accessoires') {
+    return 'https://images.unsplash.com/photo-1617038220319-276d3cfab638?auto=format&fit=crop&w=1200&q=80'
+  }
+  return 'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=1200&q=80'
+}
+
+function defaultCollectionName() {
+  return 'Nouvelle collection signature'
+}
+
+function defaultCollectionDescription() {
+  return 'Nouvelle tendance de la Maison, prete a etre enrichie depuis le back-office.'
+}
+
+function normalizeSlugValue(value) {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '')
+}
+
 function resolveCorsOrigin(origin) {
   if (!origin) return true
 
@@ -535,7 +571,9 @@ async function listOrders() {
 }
 
 function normalizeProductBody(body) {
-  const image = normalizeMediaField(body.image, { field: 'Image', allowEmpty: false })
+  const rawCategory = normalizeText(body.category ?? 'Vetements', { field: 'Category', required: true, maxLength: 32 })
+  assert(allowedCategories.has(rawCategory), 'Category is invalid.')
+  const image = normalizeMediaField(body.image, { field: 'Image', allowEmpty: true }) || productFallbackByCategory(rawCategory)
   const rawImages = Array.isArray(body.images) ? body.images : []
   const normalizedImages = [image, ...rawImages.map((item) => normalizeMediaField(item, { field: 'Images[]', allowEmpty: false }))]
     .filter(Boolean)
@@ -543,19 +581,23 @@ function normalizeProductBody(body) {
 
   return {
     id: normalizeIdentifier(body.id, 'Product id'),
-    name: normalizeText(body.name, { field: 'Product name', required: true, maxLength: MAX_NAME_LENGTH }),
-    category: (() => {
-      const normalized = normalizeText(body.category ?? 'Vetements', { field: 'Category', required: true, maxLength: 32 })
-      assert(allowedCategories.has(normalized), 'Category is invalid.')
-      return normalized
-    })(),
+    name: normalizeText(body.name ?? defaultProductName(rawCategory), { field: 'Product name', required: true, maxLength: MAX_NAME_LENGTH }),
+    category: rawCategory,
     collectionId: body.collectionId ? normalizeIdentifier(body.collectionId, 'Collection id') : null,
     price: validatePrice(body.price, 'Price'),
     compareAtPrice: validatePrice(body.compareAtPrice, 'Compare at price', { allowNull: true }),
-    description: normalizeText(body.description, { field: 'Description', required: true, maxLength: MAX_DESCRIPTION_LENGTH }),
-    material: normalizeText(body.material, { field: 'Material', required: true, maxLength: MAX_MATERIAL_LENGTH }),
-    colors: normalizeArrayOfLabels(body.colors, 'Colors'),
-    sizes: normalizeArrayOfLabels(body.sizes, 'Sizes'),
+    description: normalizeText(body.description ?? 'Piece signature de la Maison, prete a etre enrichie depuis le back-office.', {
+      field: 'Description',
+      required: true,
+      maxLength: MAX_DESCRIPTION_LENGTH
+    }),
+    material: normalizeText(body.material ?? 'Finition signature Yele House', {
+      field: 'Material',
+      required: true,
+      maxLength: MAX_MATERIAL_LENGTH
+    }),
+    colors: normalizeArrayOfLabels(Array.isArray(body.colors) && body.colors.length ? body.colors : ['Unique'], 'Colors'),
+    sizes: normalizeArrayOfLabels(Array.isArray(body.sizes) && body.sizes.length ? body.sizes : ['Unique'], 'Sizes'),
     stock: validateStock(body.stock),
     isBestSeller: Boolean(body.isBestSeller),
     image,
@@ -565,16 +607,21 @@ function normalizeProductBody(body) {
 }
 
 function normalizeCollectionBody(body) {
-  const name = normalizeText(body.name, { field: 'Collection name', required: true, maxLength: MAX_NAME_LENGTH })
-  const slug = normalizeText(body.slug, { field: 'Collection slug', required: true, maxLength: MAX_SLUG_LENGTH })
+  const name = normalizeText(body.name ?? defaultCollectionName(), { field: 'Collection name', required: true, maxLength: MAX_NAME_LENGTH })
+  const slugSource = normalizeSlugValue(body.slug) || normalizeSlugValue(name) || `collection-${Date.now()}`
+  const slug = normalizeText(slugSource, { field: 'Collection slug', required: true, maxLength: MAX_SLUG_LENGTH })
   assert(idPattern.test(slug), 'Collection slug contains invalid characters.')
 
   return {
     id: normalizeIdentifier(body.id, 'Collection id'),
     name,
     slug,
-    description: normalizeText(body.description, { field: 'Collection description', required: true, maxLength: MAX_DESCRIPTION_LENGTH }),
-    image: normalizeMediaField(body.image, { field: 'Collection image', allowEmpty: false }),
+    description: normalizeText(body.description ?? defaultCollectionDescription(), {
+      field: 'Collection description',
+      required: true,
+      maxLength: MAX_DESCRIPTION_LENGTH
+    }),
+    image: normalizeMediaField(body.image, { field: 'Collection image', allowEmpty: true }) || defaultCollections[0].image,
     video: normalizeMediaField(body.video, { field: 'Collection video', allowEmpty: true, video: true }) || null,
     isFeatured: Boolean(body.isFeatured)
   }

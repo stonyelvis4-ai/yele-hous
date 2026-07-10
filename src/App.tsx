@@ -353,6 +353,22 @@ function defaultProductName(category: Category) {
   return 'Nouvel accessoire signature'
 }
 
+function defaultCollectionName() {
+  return 'Nouvelle collection signature'
+}
+
+function defaultCollectionDescription() {
+  return 'Nouvelle tendance de la Maison, prete a etre enrichie depuis le back-office.'
+}
+
+function normalizeCollectionSlug(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '')
+}
+
 function currentPathname() {
   return window.location.pathname || '/'
 }
@@ -629,6 +645,12 @@ export default function App() {
       ignore = true
     }
   }, [path])
+
+  useEffect(() => {
+    if (path.startsWith('/admin')) return
+    if (toast.title !== 'Mode local actif') return
+    setToast(emptyToast)
+  }, [path, toast.title])
 
   const navigate = (nextPath: string, options?: { replace?: boolean }) => {
     const replace = options?.replace ?? false
@@ -1257,21 +1279,22 @@ export default function App() {
   const saveCollection = (event: FormEvent) => {
     event.preventDefault()
     const isEditingCollection = Boolean(editingCollectionId)
+    const normalizedName = collectionForm.name.trim() || defaultCollectionName()
+    const normalizedSlug =
+      normalizeCollectionSlug(collectionForm.slug) ||
+      normalizeCollectionSlug(collectionForm.name) ||
+      `collection-${Date.now()}`
+    const normalizedDescription = collectionForm.description.trim() || defaultCollectionDescription()
 
     const normalized: Collection = {
       id: editingCollectionId ?? `COL-${Date.now()}`,
       ...collectionForm,
-      name: collectionForm.name.trim(),
-      slug: (collectionForm.slug.trim() || collectionForm.name.trim().toLowerCase().replace(/\s+/g, '-')).replace(
-        /[^a-z0-9-]/g,
-        ''
-      ),
-      description: collectionForm.description.trim(),
-      image: collectionForm.image.trim() || initialCollections[0].image,
+      name: normalizedName,
+      slug: normalizedSlug,
+      description: normalizedDescription,
+      image: collectionForm.image.trim() || collectionFallbackImage,
       video: collectionForm.video?.trim() || undefined
     }
-
-    if (!normalized.name || !normalized.slug || !normalized.description) return
 
     void (async () => {
       try {
