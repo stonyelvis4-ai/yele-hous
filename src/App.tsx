@@ -28,15 +28,8 @@ import {
   User,
   X
 } from 'lucide-react'
-import { ChangeEvent, FormEvent, SyntheticEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { ChangeEvent, FormEvent, SyntheticEvent, Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatedBadge } from './components/motion/AnimatedBadge'
-import { AdminDashboardSection } from './components/admin/AdminDashboardSection'
-import { AdminMessagesSection } from './components/admin/AdminMessagesSection'
-import { AdminOrdersSection } from './components/admin/AdminOrdersSection'
-import { AdminProductsSection } from './components/admin/AdminProductsSection'
-import { AdminReviewsSection } from './components/admin/AdminReviewsSection'
-import { AdminSettingsSection } from './components/admin/AdminSettingsSection'
-import { AdminTrashSection } from './components/admin/AdminTrashSection'
 import { SmartMedia } from './components/SmartMedia'
 import { CollectionCardMotion } from './components/motion/CollectionCardMotion'
 import { CartDrawer } from './components/motion/CartDrawer'
@@ -77,6 +70,41 @@ import { currency, datetime } from './utils/format'
 import { buildWhatsAppUrl } from './utils/whatsapp'
 
 const categories: Array<Category | 'Tous'> = ['Tous', 'Vetements', 'Sacs', 'Parfums', 'Accessoires']
+
+const AdminDashboardSection = lazy(async () => {
+  const module = await import('./components/admin/AdminDashboardSection')
+  return { default: module.AdminDashboardSection }
+})
+
+const AdminOrdersSection = lazy(async () => {
+  const module = await import('./components/admin/AdminOrdersSection')
+  return { default: module.AdminOrdersSection }
+})
+
+const AdminProductsSection = lazy(async () => {
+  const module = await import('./components/admin/AdminProductsSection')
+  return { default: module.AdminProductsSection }
+})
+
+const AdminReviewsSection = lazy(async () => {
+  const module = await import('./components/admin/AdminReviewsSection')
+  return { default: module.AdminReviewsSection }
+})
+
+const AdminMessagesSection = lazy(async () => {
+  const module = await import('./components/admin/AdminMessagesSection')
+  return { default: module.AdminMessagesSection }
+})
+
+const AdminTrashSection = lazy(async () => {
+  const module = await import('./components/admin/AdminTrashSection')
+  return { default: module.AdminTrashSection }
+})
+
+const AdminSettingsSection = lazy(async () => {
+  const module = await import('./components/admin/AdminSettingsSection')
+  return { default: module.AdminSettingsSection }
+})
 
 const publicNavItems = [
   { id: 'accueil', label: 'ACCUEIL' },
@@ -1730,113 +1758,127 @@ export default function App() {
                 <p className="admin-page-copy">{adminMeta.copy}</p>
               </div>
 
-              {adminPath === '/admin/dashboard' ? (
-                <AdminDashboardSection
-                  dashboardStats={dashboardStats}
-                  recentOrders={recentOrders}
-                  recentCollections={recentCollections}
-                  navigate={navigate}
-                  startEditingCollection={startEditingCollection}
-                />
-              ) : null}
+              <Suspense
+                fallback={
+                  <div className="grid gap-6">
+                    <div className="panel-card p-7">
+                      <div className="animate-pulse space-y-4">
+                        <div className="h-5 w-40 rounded-full bg-[#f0d7e6]" />
+                        <div className="h-16 rounded-[20px] bg-[#efe7f2]" />
+                        <div className="h-40 rounded-[24px] bg-[#efe7f2]" />
+                      </div>
+                    </div>
+                  </div>
+                }
+              >
+                {adminPath === '/admin/dashboard' ? (
+                  <AdminDashboardSection
+                    dashboardStats={dashboardStats}
+                    recentOrders={recentOrders}
+                    recentCollections={recentCollections}
+                    navigate={navigate}
+                    startEditingCollection={startEditingCollection}
+                  />
+                ) : null}
 
-              {adminPath === '/admin/orders' ? (
-                <AdminOrdersSection
-                  visibleOrders={visibleOrders}
-                  orderStatusFilter={orderStatusFilter}
-                  setOrderStatusFilter={setOrderStatusFilter}
-                  updateOrderStatus={updateAdminOrderStatus}
-                />
-              ) : null}
+                {adminPath === '/admin/orders' ? (
+                  <AdminOrdersSection
+                    visibleOrders={visibleOrders}
+                    orderStatusFilter={orderStatusFilter}
+                    setOrderStatusFilter={setOrderStatusFilter}
+                    updateOrderStatus={updateAdminOrderStatus}
+                  />
+                ) : null}
 
-              {adminPath === '/admin/products' ? (
-                <AdminProductsSection
-                  productCategories={categories.slice(1) as Category[]}
-                  collections={collections}
-                  products={products}
-                  collectionMap={collectionMap}
-                  productForm={productForm}
-                  setProductForm={setProductForm}
-                  editingProductId={editingProductId}
-                  saveProduct={saveProduct}
-                  cancelProductEditing={cancelProductEditing}
-                  productSuccessMessage={productSuccessMessage}
-                  galleryInputRef={galleryInputRef}
-                  cameraInputRef={cameraInputRef}
-                  galleryVideoInputRef={galleryVideoInputRef}
-                  cameraVideoInputRef={cameraVideoInputRef}
-                  handleProductImageFile={handleProductImageFile}
-                  handleProductVideoFile={handleProductVideoFile}
-                  adminGalleryImageInput={adminGalleryImageInput}
-                  setAdminGalleryImageInput={setAdminGalleryImageInput}
-                  addGalleryImageFromUrl={addGalleryImageFromUrl}
-                  setPrimaryGalleryImage={setPrimaryGalleryImage}
-                  removeGalleryImage={removeGalleryImage}
-                  adminColorsOpen={adminColorsOpen}
-                  setAdminColorsOpen={setAdminColorsOpen}
-                  adminColorOptions={adminColorOptions}
-                  toggleAdminColor={toggleAdminColor}
-                  adminCustomColor={adminCustomColor}
-                  setAdminCustomColor={setAdminCustomColor}
-                  addCustomAdminColor={addCustomAdminColor}
-                  swatchColor={swatchColor}
-                  startEditingProduct={startEditingProduct}
-                  deleteAdminProduct={deleteAdminProduct}
-                  collectionForm={collectionForm}
-                  setCollectionForm={setCollectionForm}
-                  editingCollectionId={editingCollectionId}
-                  saveCollection={saveCollection}
-                  cancelCollectionEditing={cancelCollectionEditing}
-                  collectionSuccessMessage={collectionSuccessMessage}
-                  collectionGalleryInputRef={collectionGalleryInputRef}
-                  collectionCameraInputRef={collectionCameraInputRef}
-                  collectionGalleryVideoInputRef={collectionGalleryVideoInputRef}
-                  collectionCameraVideoInputRef={collectionCameraVideoInputRef}
-                  handleCollectionImageFile={handleCollectionImageFile}
-                  handleCollectionVideoFile={handleCollectionVideoFile}
-                  startEditingCollection={startEditingCollection}
-                  deleteAdminCollection={deleteAdminCollection}
-                />
-              ) : null}
+                {adminPath === '/admin/products' ? (
+                  <AdminProductsSection
+                    productCategories={categories.slice(1) as Category[]}
+                    collections={collections}
+                    products={products}
+                    collectionMap={collectionMap}
+                    productForm={productForm}
+                    setProductForm={setProductForm}
+                    editingProductId={editingProductId}
+                    saveProduct={saveProduct}
+                    cancelProductEditing={cancelProductEditing}
+                    productSuccessMessage={productSuccessMessage}
+                    galleryInputRef={galleryInputRef}
+                    cameraInputRef={cameraInputRef}
+                    galleryVideoInputRef={galleryVideoInputRef}
+                    cameraVideoInputRef={cameraVideoInputRef}
+                    handleProductImageFile={handleProductImageFile}
+                    handleProductVideoFile={handleProductVideoFile}
+                    adminGalleryImageInput={adminGalleryImageInput}
+                    setAdminGalleryImageInput={setAdminGalleryImageInput}
+                    addGalleryImageFromUrl={addGalleryImageFromUrl}
+                    setPrimaryGalleryImage={setPrimaryGalleryImage}
+                    removeGalleryImage={removeGalleryImage}
+                    adminColorsOpen={adminColorsOpen}
+                    setAdminColorsOpen={setAdminColorsOpen}
+                    adminColorOptions={adminColorOptions}
+                    toggleAdminColor={toggleAdminColor}
+                    adminCustomColor={adminCustomColor}
+                    setAdminCustomColor={setAdminCustomColor}
+                    addCustomAdminColor={addCustomAdminColor}
+                    swatchColor={swatchColor}
+                    startEditingProduct={startEditingProduct}
+                    deleteAdminProduct={deleteAdminProduct}
+                    collectionForm={collectionForm}
+                    setCollectionForm={setCollectionForm}
+                    editingCollectionId={editingCollectionId}
+                    saveCollection={saveCollection}
+                    cancelCollectionEditing={cancelCollectionEditing}
+                    collectionSuccessMessage={collectionSuccessMessage}
+                    collectionGalleryInputRef={collectionGalleryInputRef}
+                    collectionCameraInputRef={collectionCameraInputRef}
+                    collectionGalleryVideoInputRef={collectionGalleryVideoInputRef}
+                    collectionCameraVideoInputRef={collectionCameraVideoInputRef}
+                    handleCollectionImageFile={handleCollectionImageFile}
+                    handleCollectionVideoFile={handleCollectionVideoFile}
+                    startEditingCollection={startEditingCollection}
+                    deleteAdminCollection={deleteAdminCollection}
+                  />
+                ) : null}
 
-              {adminPath === '/admin/reviews' ? (
-                <AdminReviewsSection reviews={reviews} deleteReview={deleteAdminReview} />
-              ) : null}
+                {adminPath === '/admin/reviews' ? (
+                  <AdminReviewsSection reviews={reviews} deleteReview={deleteAdminReview} />
+                ) : null}
 
-              {adminPath === '/admin/messages' ? (
-                <AdminMessagesSection messages={messages} toggleMessageRead={toggleAdminMessageRead} />
-              ) : null}
+                {adminPath === '/admin/messages' ? (
+                  <AdminMessagesSection messages={messages} toggleMessageRead={toggleAdminMessageRead} />
+                ) : null}
 
-              {adminPath === '/admin/trash' ? (
-                <AdminTrashSection
-                  trashItemsCount={trashItemsCount}
-                  deletedProducts={deletedProducts}
-                  deletedCollections={deletedCollections}
-                  deletedReviews={deletedReviews}
-                  restoreDeletedProduct={restoreDeletedProduct}
-                  restoreDeletedCollection={restoreDeletedCollection}
-                  restoreDeletedReview={restoreDeletedReview}
-                />
-              ) : null}
+                {adminPath === '/admin/trash' ? (
+                  <AdminTrashSection
+                    trashItemsCount={trashItemsCount}
+                    deletedProducts={deletedProducts}
+                    deletedCollections={deletedCollections}
+                    deletedReviews={deletedReviews}
+                    restoreDeletedProduct={restoreDeletedProduct}
+                    restoreDeletedCollection={restoreDeletedCollection}
+                    restoreDeletedReview={restoreDeletedReview}
+                  />
+                ) : null}
 
-              {adminPath === '/admin/settings' ? (
-                <AdminSettingsSection
-                  currentAdminEmail={currentAdminSession?.email}
-                  settingsPasswordForm={settingsPasswordForm}
-                  settingsPasswordError={settingsPasswordError}
-                  settingsPasswordSuccess={settingsPasswordSuccess}
-                  showSettingsPasswords={showSettingsPasswords}
-                  shippingForm={shippingForm}
-                  shippingSettingsMessage={shippingSettingsMessage}
-                  setSettingsPasswordForm={setSettingsPasswordForm}
-                  setSettingsPasswordError={setSettingsPasswordError}
-                  setSettingsPasswordSuccess={setSettingsPasswordSuccess}
-                  setShowSettingsPasswords={setShowSettingsPasswords}
-                  setShippingForm={setShippingForm}
-                  handleAdminPasswordChange={handleAdminPasswordChange}
-                  handleShippingSettingsSubmit={handleShippingSettingsSubmit}
-                />
-              ) : null}
+                {adminPath === '/admin/settings' ? (
+                  <AdminSettingsSection
+                    currentAdminEmail={currentAdminSession?.email}
+                    settingsPasswordForm={settingsPasswordForm}
+                    settingsPasswordError={settingsPasswordError}
+                    settingsPasswordSuccess={settingsPasswordSuccess}
+                    showSettingsPasswords={showSettingsPasswords}
+                    shippingForm={shippingForm}
+                    shippingSettingsMessage={shippingSettingsMessage}
+                    setSettingsPasswordForm={setSettingsPasswordForm}
+                    setSettingsPasswordError={setSettingsPasswordError}
+                    setSettingsPasswordSuccess={setSettingsPasswordSuccess}
+                    setShowSettingsPasswords={setShowSettingsPasswords}
+                    setShippingForm={setShippingForm}
+                    handleAdminPasswordChange={handleAdminPasswordChange}
+                    handleShippingSettingsSubmit={handleShippingSettingsSubmit}
+                  />
+                ) : null}
+              </Suspense>
             </section>
           </div>
         </main>
