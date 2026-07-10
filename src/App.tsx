@@ -31,7 +31,9 @@ import {
 import { ChangeEvent, FormEvent, SyntheticEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatedBadge } from './components/motion/AnimatedBadge'
 import { AdminDashboardSection } from './components/admin/AdminDashboardSection'
+import { AdminMessagesSection } from './components/admin/AdminMessagesSection'
 import { AdminOrdersSection } from './components/admin/AdminOrdersSection'
+import { AdminReviewsSection } from './components/admin/AdminReviewsSection'
 import { AdminSettingsSection } from './components/admin/AdminSettingsSection'
 import { AdminTrashSection } from './components/admin/AdminTrashSection'
 import { SmartMedia } from './components/SmartMedia'
@@ -1359,6 +1361,32 @@ export default function App() {
     })()
   }
 
+  const deleteAdminReview = (review: Review) => {
+    void (async () => {
+      try {
+        const deletedReview = isDatabaseReady ? await deleteReviewRequest(review.id) : { ...review, deletedAt: new Date().toISOString() }
+        setReviews((current) => current.filter((item) => item.id !== review.id))
+        setDeletedReviews((current) => [deletedReview, ...current])
+        showToast('Avis deplace', 'L avis a ete envoye dans la corbeille.')
+      } catch (error) {
+        console.error(error)
+        showToast('Suppression impossible', 'L avis n a pas pu etre supprime.')
+      }
+    })()
+  }
+
+  const toggleAdminMessageRead = (message: ContactMessage) => {
+    void (async () => {
+      try {
+        const updatedMessage = isDatabaseReady ? await updateMessageRequest(message.id, !message.isRead) : { ...message, isRead: !message.isRead }
+        setMessages((current) => current.map((item) => (item.id === message.id ? updatedMessage : item)))
+      } catch (error) {
+        console.error(error)
+        showToast('Mise a jour impossible', 'Le message n a pas pu etre modifie.')
+      }
+    })()
+  }
+
   const restoreDeletedCollection = (collection: Collection) => {
     void (async () => {
       try {
@@ -2369,98 +2397,11 @@ export default function App() {
               ) : null}
 
               {adminPath === '/admin/reviews' ? (
-                <div className="panel-card p-7">
-              <div className="mb-6 flex items-center gap-3">
-                <Filter size={18} className="text-[#f04cb3]" />
-                <h2 className="text-[22px] font-semibold text-[#241f2b]">Moderation des Avis</h2>
-              </div>
-
-              <div className="space-y-4">
-                {reviews.map((review) => (
-                  <div key={review.id} className="rounded-[22px] border border-[#dfd3e4] bg-[#fffdfd] p-5">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <h3 className="font-semibold text-[#241f2b]">{review.title}</h3>
-                        <p className="mt-1 text-sm text-[#8a7f95]">
-                          {review.author} • {review.rating}/5
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void (async () => {
-                            try {
-                              const deletedReview = isDatabaseReady
-                                ? await deleteReviewRequest(review.id)
-                                : { ...review, deletedAt: new Date().toISOString() }
-                              setReviews((current) => current.filter((item) => item.id !== review.id))
-                              setDeletedReviews((current) => [deletedReview, ...current])
-                              showToast('Avis deplace', 'L avis a ete envoye dans la corbeille.')
-                            } catch (error) {
-                              console.error(error)
-                              showToast('Suppression impossible', 'L avis n a pas pu etre supprime.')
-                            }
-                          })()
-                        }}
-                        className="icon-soft"
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
-                    <p className="mt-4 text-sm leading-7 text-[#6f657a]">{review.body}</p>
-                  </div>
-                ))}
-              </div>
-                </div>
+                <AdminReviewsSection reviews={reviews} deleteReview={deleteAdminReview} />
               ) : null}
 
               {adminPath === '/admin/messages' ? (
-                <div className="panel-card p-7">
-              <div className="mb-6 flex items-center gap-3">
-                <MessageCircleMore size={18} className="text-[#f04cb3]" />
-                <h2 className="text-[22px] font-semibold text-[#241f2b]">Messagerie de Conciergerie</h2>
-              </div>
-
-              <div className="space-y-4">
-                {messages.map((message) => (
-                  <div key={message.id} className="rounded-[22px] border border-[#dfd3e4] bg-[#fffdfd] p-5">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <h3 className="font-semibold text-[#241f2b]">{message.topic}</h3>
-                        <p className="mt-1 text-sm text-[#8a7f95]">
-                          {message.name} • {datetime.format(new Date(message.createdAt))}
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void (async () => {
-                            try {
-                              const updatedMessage = isDatabaseReady
-                                ? await updateMessageRequest(message.id, !message.isRead)
-                                : { ...message, isRead: !message.isRead }
-                              setMessages((current) =>
-                                current.map((item) => (item.id === message.id ? updatedMessage : item))
-                              )
-                            } catch (error) {
-                              console.error(error)
-                              showToast('Mise a jour impossible', 'Le message n a pas pu etre modifie.')
-                            }
-                          })()
-                        }}
-                        className={`filter-chip ${message.isRead ? '' : 'filter-chip-active'}`}
-                      >
-                        {message.isRead ? 'Lu' : 'Non lu'}
-                      </button>
-                    </div>
-                    <p className="mt-4 text-sm leading-7 text-[#6f657a]">{message.message}</p>
-                    <a href={`https://wa.me/${message.phone}`} target="_blank" rel="noreferrer" className="mt-4 inline-flex primary-button px-5">
-                      Reponse directe
-                    </a>
-                  </div>
-                ))}
-              </div>
-                </div>
+                <AdminMessagesSection messages={messages} toggleMessageRead={toggleAdminMessageRead} />
               ) : null}
 
               {adminPath === '/admin/trash' ? (
