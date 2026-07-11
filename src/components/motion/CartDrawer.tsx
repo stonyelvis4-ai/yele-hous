@@ -29,7 +29,7 @@ export function CartDrawer({ open, onClose, children }: CartDrawerProps) {
             exit="exit"
             variants={cartDrawerVariants}
             transition={cartDrawerTransition}
-            className="fixed right-0 top-0 z-50 flex h-screen w-full max-w-[452px] flex-col border-l border-[#e7c8db] bg-[#fdf1f7] p-6 shadow-[0_0_80px_rgba(138,67,108,0.18)]"
+            className="fixed bottom-0 left-0 right-0 z-50 flex h-[88vh] w-full flex-col rounded-t-[28px] border-x border-t border-[#e7c8db] bg-[#fdf1f7] p-4 shadow-[0_0_80px_rgba(138,67,108,0.18)] sm:h-[90vh] sm:p-5 md:bottom-auto md:left-auto md:right-0 md:top-0 md:h-screen md:max-w-[452px] md:rounded-none md:border-x-0 md:border-l md:border-t-0 md:p-6"
           >
             {children}
           </motion.aside>
