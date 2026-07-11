@@ -1,8 +1,10 @@
-import { ClipboardList } from 'lucide-react'
+import { ClipboardList, Trash2 } from 'lucide-react'
 import { currency, datetime } from '../../utils/format'
 import { Order, OrderStatus } from '../../types'
 
 interface AdminOrdersSectionProps {
+  orders: Order[]
+  remainingStockCount: number
   visibleOrders: Order[]
   orderStatusFilter: OrderStatus | 'Tous'
   setOrderStatusFilter: (value: OrderStatus | 'Tous') => void
@@ -10,11 +12,28 @@ interface AdminOrdersSectionProps {
 }
 
 export function AdminOrdersSection({
+  orders,
+  remainingStockCount,
   visibleOrders,
   orderStatusFilter,
   setOrderStatusFilter,
   updateOrderStatus
 }: AdminOrdersSectionProps) {
+  const pendingOrdersCount = orders.filter((order) => order.status === 'En attente').length
+  const deliveredOrdersCount = orders.filter((order) => order.status === 'Livree').length
+  const cancelledOrdersCount = orders.filter((order) => order.status === 'Annulee').length
+
+  const orderFilters: Array<{
+    value: OrderStatus | 'Tous'
+    label: string
+    icon?: 'trash'
+  }> = [
+    { value: 'Tous', label: `${orders.length} colis` },
+    { value: 'En attente', label: `${pendingOrdersCount} colis en attente` },
+    { value: 'Livree', label: `${deliveredOrdersCount} colis livres` },
+    { value: 'Annulee', label: `${cancelledOrdersCount}`, icon: 'trash' }
+  ]
+
   return (
     <div className="panel-card p-7">
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -24,16 +43,20 @@ export function AdminOrdersSection({
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {(['Tous', 'En attente', 'Livree', 'Annulee'] as const).map((value) => (
+          {orderFilters.map((filter) => (
             <button
-              key={value}
+              key={filter.value}
               type="button"
-              onClick={() => setOrderStatusFilter(value)}
-              className={`filter-chip ${orderStatusFilter === value ? 'filter-chip-active' : ''}`}
+              onClick={() => setOrderStatusFilter(filter.value)}
+              className={`filter-chip inline-flex items-center gap-2 ${orderStatusFilter === filter.value ? 'filter-chip-active' : ''}`}
             >
-              {value}
+              {filter.icon === 'trash' ? <Trash2 size={14} /> : null}
+              {filter.label}
             </button>
           ))}
+          <div className="filter-chip pointer-events-none">
+            {remainingStockCount} colis restant en stock
+          </div>
         </div>
       </div>
 
@@ -57,9 +80,10 @@ export function AdminOrdersSection({
                     key={status}
                     type="button"
                     onClick={() => updateOrderStatus(order, status)}
-                    className={`filter-chip ${order.status === status ? 'filter-chip-active' : ''}`}
+                    className={`filter-chip inline-flex items-center gap-2 ${order.status === status ? 'filter-chip-active' : ''}`}
                   >
-                    {status}
+                    {status === 'Annulee' ? <Trash2 size={14} /> : null}
+                    {status === 'Annulee' ? 'Corbeille' : status}
                   </button>
                 ))}
                 <a

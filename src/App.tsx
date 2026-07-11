@@ -881,6 +881,11 @@ export default function App() {
     [activeProducts]
   )
 
+  const remainingStockCount = useMemo(
+    () => activeProducts.reduce((sum, product) => sum + Math.max(product.stock, 0), 0),
+    [activeProducts]
+  )
+
   const dashboardStats = useMemo(() => {
     const revenue = orders.filter((order) => order.status === 'Livree').reduce((sum, order) => sum + order.total, 0)
 
@@ -2205,6 +2210,8 @@ export default function App() {
 
                 {adminPath === '/admin/orders' ? (
                   <AdminOrdersSection
+                    orders={orders}
+                    remainingStockCount={remainingStockCount}
                     visibleOrders={visibleOrders}
                     orderStatusFilter={orderStatusFilter}
                     setOrderStatusFilter={setOrderStatusFilter}
