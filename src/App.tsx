@@ -33,7 +33,6 @@ import { AnimatedBadge } from './components/motion/AnimatedBadge'
 import { SmartMedia } from './components/SmartMedia'
 import { CollectionCardMotion } from './components/motion/CollectionCardMotion'
 import { CartDrawer } from './components/motion/CartDrawer'
-import { AnimatedModal } from './components/motion/AnimatedModal'
 import { PageTransition } from './components/motion/PageTransition'
 import { ProductCardMotion } from './components/motion/ProductCardMotion'
 import { RevealSection } from './components/motion/RevealSection'
@@ -438,6 +437,11 @@ function currentPathname() {
   return window.location.pathname || '/'
 }
 
+function getProductPathId(path: string) {
+  const match = path.match(/^\/produit\/([^/]+)$/)
+  return match ? decodeURIComponent(match[1]) : null
+}
+
 function isProtectedAdminPath(path: string): path is AdminPath {
   return protectedAdminPaths.includes(path as AdminPath)
 }
@@ -554,7 +558,6 @@ export default function App() {
     confirm: false
   })
   const [toast, setToast] = useState(emptyToast)
-  const [previewProductId, setPreviewProductId] = useState<string | null>(null)
   const [previewProductLoading, setPreviewProductLoading] = useState(false)
   const [previewProductError, setPreviewProductError] = useState('')
   const [adminCustomColor, setAdminCustomColor] = useState('')
@@ -948,6 +951,8 @@ export default function App() {
     return activeCollections.filter((collection) => collection.isFeatured).slice(0, 3)
   }, [activeCollections])
 
+  const productPathId = useMemo(() => getProductPathId(path), [path])
+
   const collectionMap = useMemo(
     () => activeCollections.reduce<Record<string, Collection>>((accumulator, collection) => {
       accumulator[collection.id] = collection
@@ -957,8 +962,8 @@ export default function App() {
   )
 
   const previewProduct = useMemo(
-    () => activeProducts.find((product) => product.id === previewProductId) ?? null,
-    [activeProducts, previewProductId]
+    () => activeProducts.find((product) => product.id === productPathId) ?? null,
+    [activeProducts, productPathId]
   )
   const previewSelection = previewProduct
     ? selectedOptions[previewProduct.id] ?? {
@@ -1069,16 +1074,18 @@ export default function App() {
     setToast({ title, message })
   }
 
-  const openPreviewProduct = async (productId: string) => {
-    setPreviewProductId(productId)
+  const loadProductDetail = async (productId: string) => {
     setPreviewProductError('')
-
     if (!isDatabaseReady) return
+    if (warmedProductMediaRef.current.has(productId) && activeProducts.find((product) => product.id === productId && !product.hasDeferredMedia)) {
+      return
+    }
 
     setPreviewProductLoading(true)
 
     try {
       const detailedProduct = await fetchPublicProduct(productId)
+      warmedProductMediaRef.current.add(productId)
       setProducts((current) => current.map((product) => (product.id === productId ? detailedProduct : product)))
     } catch (error) {
       console.error(error)
@@ -1086,6 +1093,11 @@ export default function App() {
     } finally {
       setPreviewProductLoading(false)
     }
+  }
+
+  const openPreviewProduct = async (productId: string) => {
+    navigate(`/produit/${productId}`)
+    void loadProductDetail(productId)
   }
 
   const syncCartWithServer = async (nextItems: CartItem[], nextCommune?: string) => {
@@ -1150,6 +1162,11 @@ export default function App() {
     if (!isCartOpen || !cart.length) return
     void syncCartWithServer(cart, orderForm.commune)
   }, [orderForm.commune])
+
+  useEffect(() => {
+    if (!productPathId || path.startsWith('/admin')) return
+    void loadProductDetail(productPathId)
+  }, [productPathId, isDatabaseReady])
 
   const addToCart = (product: Product) => {
     if (product.stock <= 0) {
@@ -1220,7 +1237,6 @@ export default function App() {
   const addPreviewProductToCart = () => {
     if (!previewProduct) return
     addToCart(previewProduct)
-    setPreviewProductId(null)
   }
 
   const updateCartQuantity = (productId: string, color: string, size: string, delta: number) => {
@@ -2414,7 +2430,269 @@ export default function App() {
         </AnimatePresence>
       </header>
 
-      {shouldShowPublicLoading ? (
+      {productPathId ? (
+        <main className="border-b border-[#e4d9e8]">
+          <section className="section-shell pb-28 pt-8 sm:pb-10 sm:pt-10">
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#dfd3e4] bg-white/90 px-4 py-2 text-sm font-medium text-[#5f556a]"
+            >
+              <ArrowRight size={16} className="rotate-180" />
+              Retour a la boutique
+            </button>
+
+            {previewProduct ? (
+              <div className="grid gap-6 lg:grid-cols-[0.92fr_1.08fr]">
+                <div className="premium-preview-media">
+                  {previewProduct.video ? (
+                    <motion.video
+                      src={previewProduct.video}
+                      poster={previewSelection?.image ?? previewProduct.image}
+                      className="premium-preview-image"
+                      autoPlay
+                      muted
+                      loop
+                      playsInline
+                      controls
+                    />
+                  ) : (
+                    <motion.img
+                      src={previewSelection?.image ?? previewProduct.image}
+                      alt={previewProduct.name}
+                      className="premium-preview-image"
+                      onError={(event) => applyImageFallback(event, productFallbackImage(previewProduct.category))}
+                    />
+                  )}
+                  <div className="premium-preview-overlay" />
+                </div>
+
+                <div className="rounded-[28px] border border-[#e7c8db] bg-[#fff7fb] p-5 shadow-[0_30px_90px_rgba(138,67,108,0.12)] sm:p-6 lg:p-8">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="product-category">{categoryLabel(previewProduct.category)}</p>
+                      <h1 className="mt-3 editorial-title text-[34px] leading-none text-[#241f2b] sm:text-[42px]">{previewProduct.name}</h1>
+                    </div>
+                    <AnimatedBadge className="mt-1">{previewProduct.isBestSeller ? 'Best Seller' : 'Abidjan Summer 2026'}</AnimatedBadge>
+                  </div>
+
+                  <p className="mt-5 text-[15px] leading-7 text-[#6f657a]">{previewProduct.description}</p>
+
+                  {previewProductLoading ? <p className="mt-3 text-sm text-[#8a7f95]">Chargement des medias du produit...</p> : null}
+                  {previewProductError ? <p className="mt-3 text-sm text-[#d63e74]">{previewProductError}</p> : null}
+
+                  {previewProduct.images.length > 1 ? (
+                    <div className="mt-5 flex flex-wrap gap-3">
+                      {previewProduct.images.map((image, index) => (
+                        <button
+                          key={`${image}-${index}`}
+                          type="button"
+                          onClick={() =>
+                            setSelectedOptions((current) => ({
+                              ...current,
+                              [previewProduct.id]: { ...previewSelection!, image }
+                            }))
+                          }
+                          className={`overflow-hidden rounded-[18px] border ${
+                            (previewSelection?.image ?? previewProduct.image) === image ? 'border-[#f04cb3]' : 'border-[#dfd3e4]'
+                          }`}
+                        >
+                          <img
+                            src={image}
+                            alt={`${previewProduct.name} visuel ${index + 1}`}
+                            className="h-20 w-20 object-cover"
+                            onError={(event) => applyImageFallback(event, productFallbackImage(previewProduct.category))}
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                    <div className="rounded-[20px] border border-[#dfd3e4] bg-[#fffdfd] p-4">
+                      <p className="text-[12px] font-semibold tracking-[0.18em] text-[#f04cb3]">MATIERE</p>
+                      <p className="mt-3 text-sm leading-7 text-[#5f556a]">{previewProduct.material}</p>
+                    </div>
+                    <div className="rounded-[20px] border border-[#dfd3e4] bg-[#fffdfd] p-4">
+                      <p className="text-[12px] font-semibold tracking-[0.18em] text-[#f04cb3]">STOCK</p>
+                      <p className="mt-3 text-sm leading-7 text-[#5f556a]">
+                        {previewProduct.stock > 0 ? `${previewProduct.stock} pieces disponibles` : 'Rupture de stock'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-5">
+                    {previewProduct.compareAtPrice ? (
+                      <p className="text-[14px] text-[#8a7f95] line-through">{currency.format(previewProduct.compareAtPrice)}</p>
+                    ) : null}
+                    <p className="price-now mt-1">{currency.format(previewProduct.price)}</p>
+                  </div>
+
+                  <div className="mt-5">
+                    <p className="form-label">COULEURS</p>
+                    <div className="flex flex-wrap gap-2">
+                      {previewProduct.colors.map((item) => (
+                        <button
+                          key={item}
+                          type="button"
+                          onClick={() =>
+                            setSelectedOptions((current) => ({
+                              ...current,
+                              [previewProduct.id]: { ...previewSelection!, color: item }
+                            }))
+                          }
+                          className={`flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition ${
+                            previewSelection?.color === item ? 'border-[#ef4cae]/40 bg-[#ef4cae]/10 text-[#241f2b]' : 'border-[#dfd3e4] bg-white text-[#5f556a]'
+                          }`}
+                        >
+                          <span className="h-3 w-3 rounded-full" style={{ backgroundColor: swatchColor(item) }} />
+                          {item}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mt-5">
+                    <p className="form-label">TAILLES</p>
+                    <div className="flex flex-wrap gap-2">
+                      {previewProduct.sizes.map((item) => (
+                        <button
+                          key={item}
+                          type="button"
+                          onClick={() =>
+                            setSelectedOptions((current) => ({
+                              ...current,
+                              [previewProduct.id]: { ...previewSelection!, size: item }
+                            }))
+                          }
+                          className={`rounded-full border px-4 py-2 text-sm transition ${
+                            previewSelection?.size === item ? 'border-[#8a738f] bg-[#f7eef5] text-[#241f2b]' : 'border-[#dfd3e4] bg-white text-[#6f657a]'
+                          }`}
+                        >
+                          {item}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mt-6 hidden flex-col gap-3 sm:flex-row sm:flex">
+                    <motion.button
+                      type="button"
+                      onClick={addPreviewProductToCart}
+                      className="primary-button flex-1 disabled:cursor-not-allowed disabled:opacity-50"
+                      whileHover={previewProduct.stock > 0 ? { scale: 1.03 } : undefined}
+                      whileTap={previewProduct.stock > 0 ? { scale: 0.97 } : undefined}
+                      disabled={previewProduct.stock <= 0}
+                    >
+                      {previewProduct.stock > 0 ? 'Ajouter au panier' : 'Rupture de stock'}
+                    </motion.button>
+                    <motion.button
+                      type="button"
+                      onClick={() => setIsCartOpen(true)}
+                      className="secondary-button"
+                      whileHover={{ scale: 1.03 }}
+                      whileTap={{ scale: 0.97 }}
+                    >
+                      Voir le panier
+                    </motion.button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="panel-card p-8 text-center">
+                <h1 className="editorial-title text-[34px] text-[#241f2b]">Produit introuvable</h1>
+                <p className="mt-4 text-[15px] leading-7 text-[#6f657a]">
+                  Cette fiche produit n&apos;est plus disponible dans la vitrine.
+                </p>
+                <button type="button" onClick={() => navigate('/')} className="primary-button mt-6">
+                  Retour a l&apos;accueil
+                </button>
+              </div>
+            )}
+
+            {previewProduct && relatedPreviewProducts.length ? (
+              <div className="mt-12">
+                <div className="section-heading">
+                  <p className="section-kicker">SELECTION COMPLEMENTAIRE</p>
+                  <h2 className="section-title text-[42px] sm:text-[54px]">A decouvrir aussi</h2>
+                  <div className="section-line" />
+                </div>
+
+                <div className="mt-10 grid gap-7 md:grid-cols-2 xl:grid-cols-3">
+                  {relatedPreviewProducts.map((product) => {
+                    const selection = selectedOptions[product.id] ?? {
+                      color: product.colors[0] ?? '',
+                      size: product.sizes[0] ?? '',
+                      image: product.image
+                    }
+
+                    return (
+                      <ProductCardMotion
+                        key={product.id}
+                        badge={product.isBestSeller ? 'Best Seller' : 'Nouveau'}
+                        category={categoryLabel(product.category)}
+                        score={scoreForProduct(product)}
+                        title={product.name}
+                        copy={product.description}
+                        price={currency.format(product.price)}
+                        compareAtPrice={product.compareAtPrice ? currency.format(product.compareAtPrice) : undefined}
+                        image={product.image}
+                        video={product.video}
+                        colors={product.colors}
+                        sizes={product.sizes}
+                        selectedColor={selection.color}
+                        selectedSize={selection.size}
+                        swatchColor={swatchColor}
+                        isOutOfStock={product.stock <= 0}
+                        onColorSelect={(item) =>
+                          setSelectedOptions((current) => ({
+                            ...current,
+                            [product.id]: { ...selection, color: item }
+                          }))
+                        }
+                        onSizeChange={(size) =>
+                          setSelectedOptions((current) => ({
+                            ...current,
+                            [product.id]: { ...selection, size }
+                          }))
+                        }
+                        onPreview={() => void openPreviewProduct(product.id)}
+                        onAdd={() => addToCart(product)}
+                      />
+                    )
+                  })}
+                </div>
+              </div>
+            ) : null}
+
+            {previewProduct ? (
+              <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[#ead7e3] bg-[rgba(253,241,247,0.94)] px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-18px_45px_rgba(138,67,108,0.12)] backdrop-blur-xl sm:hidden">
+                <div className="mx-auto flex max-w-[1240px] gap-3">
+                  <motion.button
+                    type="button"
+                    onClick={addPreviewProductToCart}
+                    className="primary-button flex-1 disabled:cursor-not-allowed disabled:opacity-50"
+                    whileHover={previewProduct.stock > 0 ? { scale: 1.01 } : undefined}
+                    whileTap={previewProduct.stock > 0 ? { scale: 0.98 } : undefined}
+                    disabled={previewProduct.stock <= 0}
+                  >
+                    {previewProduct.stock > 0 ? 'Ajouter' : 'Rupture'}
+                  </motion.button>
+                  <motion.button
+                    type="button"
+                    onClick={() => setIsCartOpen(true)}
+                    className="secondary-button min-w-[138px]"
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    Voir le panier
+                  </motion.button>
+                </div>
+              </div>
+            ) : null}
+          </section>
+        </main>
+      ) : shouldShowPublicLoading ? (
         <main className="border-b border-[#e4d9e8]">
           <section className="section-shell pb-12 pt-8">
             <div className="animate-pulse">
@@ -2835,203 +3113,6 @@ export default function App() {
           </div>
         </div>
       </footer>
-
-      <AnimatedModal open={!!previewProduct} onClose={() => setPreviewProductId(null)}>
-        {previewProduct ? (
-          <div className="grid gap-6 md:grid-cols-[0.9fr_1.1fr]">
-            <div className="premium-preview-media">
-              {previewProduct.video ? (
-                <motion.video
-                  src={previewProduct.video}
-                  poster={previewSelection?.image ?? previewProduct.image}
-                  className="premium-preview-image"
-                  autoPlay
-                  muted
-                  loop
-                  playsInline
-                  controls
-                  whileHover={{ scale: 1.04 }}
-                  transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-                />
-              ) : (
-                <motion.img
-                  src={previewSelection?.image ?? previewProduct.image}
-                  alt={previewProduct.name}
-                  className="premium-preview-image"
-                  onError={(event) => applyImageFallback(event, productFallbackImage(previewProduct.category))}
-                  whileHover={{ scale: 1.08 }}
-                  transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-                />
-              )}
-              <div className="premium-preview-overlay" />
-            </div>
-
-            <div>
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="product-category">{categoryLabel(previewProduct.category)}</p>
-                  <h3 className="mt-3 editorial-title text-[34px] leading-none text-[#241f2b]">{previewProduct.name}</h3>
-                </div>
-                <AnimatedBadge className="mt-1">{previewProduct.isBestSeller ? 'Best Seller' : 'Abidjan Summer 2026'}</AnimatedBadge>
-              </div>
-
-              <p className="mt-5 text-[15px] leading-7 text-[#6f657a]">{previewProduct.description}</p>
-
-              {previewProductLoading ? (
-                <p className="mt-3 text-sm text-[#8a7f95]">Chargement des medias du produit...</p>
-              ) : null}
-              {previewProductError ? (
-                <p className="mt-3 text-sm text-[#d63e74]">{previewProductError}</p>
-              ) : null}
-
-              {previewProduct.images.length > 1 ? (
-                <div className="mt-5 flex flex-wrap gap-3">
-                  {previewProduct.images.map((image, index) => (
-                    <button
-                      key={`${image}-${index}`}
-                      type="button"
-                      onClick={() =>
-                        setSelectedOptions((current) => ({
-                          ...current,
-                          [previewProduct.id]: { ...previewSelection!, image }
-                        }))
-                      }
-                      className={`overflow-hidden rounded-[18px] border ${
-                        (previewSelection?.image ?? previewProduct.image) === image ? 'border-[#f04cb3]' : 'border-[#dfd3e4]'
-                      }`}
-                    >
-                      <img
-                        src={image}
-                        alt={`${previewProduct.name} visuel ${index + 1}`}
-                        className="h-20 w-20 object-cover"
-                        onError={(event) => applyImageFallback(event, productFallbackImage(previewProduct.category))}
-                      />
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-
-              <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                <div className="rounded-[20px] border border-[#dfd3e4] bg-[#fffdfd] p-4">
-                  <p className="text-[12px] font-semibold tracking-[0.18em] text-[#f04cb3]">MATIERE</p>
-                  <p className="mt-3 text-sm leading-7 text-[#5f556a]">{previewProduct.material}</p>
-                </div>
-                <div className="rounded-[20px] border border-[#dfd3e4] bg-[#fffdfd] p-4">
-                  <p className="text-[12px] font-semibold tracking-[0.18em] text-[#f04cb3]">STOCK</p>
-                  <p className="mt-3 text-sm leading-7 text-[#5f556a]">
-                    {previewProduct.stock > 0 ? `${previewProduct.stock} pieces disponibles` : 'Rupture de stock'}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-5">
-                {previewProduct.compareAtPrice ? (
-                  <p className="text-[14px] text-[#8a7f95] line-through">{currency.format(previewProduct.compareAtPrice)}</p>
-                ) : null}
-                <p className="price-now mt-1">{currency.format(previewProduct.price)}</p>
-              </div>
-
-              <div className="mt-5">
-                <p className="form-label">COULEURS</p>
-                <div className="flex flex-wrap gap-2">
-                  {previewProduct.colors.map((item) => {
-                    return (
-                      <button
-                        key={item}
-                        type="button"
-                        onClick={() =>
-                          setSelectedOptions((current) => ({
-                            ...current,
-                            [previewProduct.id]: { ...previewSelection!, color: item }
-                          }))
-                        }
-                        className={`flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition ${
-                          previewSelection?.color === item ? 'border-[#ef4cae]/40 bg-[#ef4cae]/10 text-[#241f2b]' : 'border-[#dfd3e4] bg-white text-[#5f556a]'
-                        }`}
-                      >
-                        <span className="h-3 w-3 rounded-full" style={{ backgroundColor: swatchColor(item) }} />
-                        {item}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-
-              <div className="mt-5">
-                <p className="form-label">TAILLE / FORMAT</p>
-                <div className="flex flex-wrap gap-2">
-                  {previewProduct.sizes.map((item) => {
-                    return (
-                      <button
-                        key={item}
-                        type="button"
-                        onClick={() =>
-                          setSelectedOptions((current) => ({
-                            ...current,
-                            [previewProduct.id]: { ...previewSelection!, size: item }
-                          }))
-                        }
-                        className={`rounded-full border px-3 py-2 text-sm transition ${
-                          previewSelection?.size === item ? 'border-[#ef4cae]/40 bg-[#ef4cae]/10 text-[#241f2b]' : 'border-[#dfd3e4] bg-white text-[#5f556a]'
-                        }`}
-                      >
-                        {item}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-
-              <div className="mt-6 flex flex-wrap gap-3">
-                <motion.button
-                  type="button"
-                  onClick={addPreviewProductToCart}
-                  className="primary-button px-6 disabled:cursor-not-allowed disabled:opacity-50"
-                  whileHover={previewProduct.stock > 0 ? { scale: 1.03 } : undefined}
-                  whileTap={previewProduct.stock > 0 ? { scale: 0.97 } : undefined}
-                  disabled={previewProduct.stock <= 0}
-                >
-                  {previewProduct.stock > 0 ? 'Ajouter au panier' : 'Rupture de stock'}
-                </motion.button>
-                <motion.button type="button" onClick={() => setPreviewProductId(null)} className="secondary-button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
-                  Fermer
-                </motion.button>
-              </div>
-
-              {relatedPreviewProducts.length ? (
-                <div className="mt-8">
-                  <p className="form-label">LOOK COMPLET</p>
-                  <div className="mt-3 grid gap-3">
-                    {relatedPreviewProducts.map((product) => (
-                      <motion.button
-                        key={product.id}
-                        type="button"
-                        onClick={() => void openPreviewProduct(product.id)}
-                        className="look-complete-card"
-                        whileHover={{ y: -4, scale: 1.01 }}
-                        whileTap={{ scale: 0.98 }}
-                      >
-                        <img
-                          src={product.image}
-                          alt={product.name}
-                          className="look-complete-image"
-                          onError={(event) => applyImageFallback(event, productFallbackImage(product.category))}
-                        />
-                        <div className="min-w-0 flex-1 text-left">
-                          <p className="text-[11px] font-semibold tracking-[0.16em] text-[#f04cb3]">{categoryLabel(product.category)}</p>
-                          <h4 className="mt-1 truncate text-[15px] font-semibold text-[#241f2b]">{product.name}</h4>
-                          <p className="mt-2 text-sm text-[#6f657a]">{currency.format(product.price)}</p>
-                        </div>
-                        <span className="text-[#9a90a7]">+</span>
-                      </motion.button>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          </div>
-        ) : null}
-      </AnimatedModal>
 
       <CartDrawer open={isCartOpen} onClose={() => setIsCartOpen(false)}>
         <div className="flex items-center justify-between border-b border-[#e4d9e8] pb-5">
