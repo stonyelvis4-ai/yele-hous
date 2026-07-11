@@ -42,11 +42,13 @@ import {
   ApiError,
   changeAdminPassword as changeAdminPasswordRequest,
   createCollection as createCollectionRequest,
+  createDeliveryCommune as createDeliveryCommuneRequest,
   createMessage as createMessageRequest,
   createOrder as createOrderRequest,
   createProduct as createProductRequest,
   createReview as createReviewRequest,
   deleteCollection as deleteCollectionRequest,
+  deleteDeliveryCommune as deleteDeliveryCommuneRequest,
   deleteProduct as deleteProductRequest,
   deleteReview as deleteReviewRequest,
   fetchAdminBootstrap,
@@ -54,19 +56,34 @@ import {
   restoreCollection as restoreCollectionRequest,
   restoreProduct as restoreProductRequest,
   restoreReview as restoreReviewRequest,
-  updateShippingRates as updateShippingRatesRequest,
   updateCollection as updateCollectionRequest,
+  updateDeliveryCommune as updateDeliveryCommuneRequest,
+  updateDeliveryCommuneStatus as updateDeliveryCommuneStatusRequest,
   updateMessage as updateMessageRequest,
   updateOrderStatus as updateOrderStatusRequest,
   updateProduct as updateProductRequest,
+  validateCart as validateCartRequest,
   verifyAdminSession
 } from './lib/api'
 import { useLocalStorage } from './hooks/useLocalStorage'
 import { getAdminSession, isAdminAuthenticated, loginAdmin, logoutAdmin, syncAdminSession } from './lib/auth'
-import { CartItem, Category, Collection, ContactMessage, Order, OrderStatus, Product, Review, ShippingRates } from './types'
+import {
+  CartItem,
+  CartValidationResult,
+  Category,
+  Collection,
+  ContactMessage,
+  DeliveryCommune,
+  Order,
+  OrderStatus,
+  Product,
+  Review,
+  ShippingRates
+} from './types'
 import { collectionFallbackImage, productFallbackImage } from './lib/imageFallbacks'
 import { currency, datetime } from './utils/format'
 import { buildWhatsAppUrl } from './utils/whatsapp'
+import { AdminDeliveryCommunesSection } from './components/admin/AdminDeliveryCommunesSection'
 
 const categories: Array<Category | 'Tous'> = ['Tous', 'Vetements', 'Sacs', 'Parfums', 'Accessoires']
 
@@ -131,13 +148,23 @@ const adminLinks = [
   { path: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/admin/orders', label: 'Commandes', icon: ClipboardList },
   { path: '/admin/products', label: 'Catalogue', icon: PackagePlus },
+  { path: '/admin/delivery-communes', label: 'Livraison', icon: MapPin },
   { path: '/admin/reviews', label: 'Avis', icon: Filter },
   { path: '/admin/messages', label: 'Messages', icon: MessageCircleMore },
   { path: '/admin/trash', label: 'Corbeille', icon: Trash2 },
   { path: '/admin/settings', label: 'Parametres', icon: Settings }
 ] as const
 
-const protectedAdminPaths = ['/admin/dashboard', '/admin/orders', '/admin/products', '/admin/reviews', '/admin/messages', '/admin/trash', '/admin/settings'] as const
+const protectedAdminPaths = [
+  '/admin/dashboard',
+  '/admin/orders',
+  '/admin/products',
+  '/admin/delivery-communes',
+  '/admin/reviews',
+  '/admin/messages',
+  '/admin/trash',
+  '/admin/settings'
+] as const
 
 type PublicNavId = (typeof publicNavItems)[number]['id']
 type AdminPath = (typeof protectedAdminPaths)[number]
@@ -177,7 +204,8 @@ const emptyAdminLoginForm = { email: '', password: '' }
 const emptyToast = { title: '', message: '' }
 const emptyPasswordForm = { currentPassword: '', nextPassword: '', confirmPassword: '' }
 const emptyGalleryImageInput = ''
-const PUBLIC_BOOTSTRAP_CACHE_KEY = 'yele-public-bootstrap-cache-v2'
+const emptyDeliveryCommuneForm = { id: '', nom: '', prixLivraison: 0, estActive: true }
+const PUBLIC_BOOTSTRAP_CACHE_KEY = 'yele-public-bootstrap-cache-v3'
 const defaultShippingRates: ShippingRates = {
   Cocody: 5000,
   Plateau: 4500,
@@ -186,11 +214,20 @@ const defaultShippingRates: ShippingRates = {
   Zone4: 3000,
   Yopougon: 6000
 }
+const fallbackDeliveryCommunes: DeliveryCommune[] = Object.entries(defaultShippingRates).map(([nom, prixLivraison]) => ({
+  id: `fallback-${nom.toLowerCase()}`,
+  nom,
+  prixLivraison,
+  estActive: true,
+  createdAt: '',
+  updatedAt: ''
+}))
 
 type PublicBootstrapCache = {
   collections: Collection[]
   products: Product[]
   reviews: Review[]
+  deliveryCommunes: DeliveryCommune[]
   shippingRates: ShippingRates
 }
 
@@ -216,6 +253,19 @@ function writePublicBootstrapCache(value: PublicBootstrapCache) {
 
 async function loadFallbackData(): Promise<FallbackDataModule> {
   return import('./data')
+}
+
+function buildShippingRatesFromCommunes(communes: DeliveryCommune[]) {
+  return communes.reduce<ShippingRates>((accumulator, commune) => {
+    if (commune.estActive) {
+      accumulator[commune.nom] = commune.prixLivraison
+    }
+    return accumulator
+  }, {})
+}
+
+function isBagCategory(category: string) {
+  return category.trim().toLowerCase() === 'sacs'
 }
 
 function dataUrlByteSize(dataUrl: string) {
@@ -404,6 +454,12 @@ function adminHeading(path: AdminPath) {
         title: 'Catalogue Premium',
         copy: 'Ajoutez, modifiez ou retirez les pieces de la Maison sans jamais exposer l administration a la vitrine.'
       }
+    case '/admin/delivery-communes':
+      return {
+        kicker: 'BACK OFFICE',
+        title: 'Livraison > Communes',
+        copy: 'Activez, desactivez et tarifez les communes disponibles dans le panier client.'
+      }
     case '/admin/reviews':
       return {
         kicker: 'BACK OFFICE',
@@ -440,6 +496,9 @@ function adminHeading(path: AdminPath) {
 export default function App() {
   const cachedPublicBootstrap = readPublicBootstrapCache()
   const [collections, setCollections] = useState<Collection[]>(cachedPublicBootstrap?.collections ?? [])
+  const [deliveryCommunes, setDeliveryCommunes] = useState<DeliveryCommune[]>(
+    cachedPublicBootstrap?.deliveryCommunes ?? fallbackDeliveryCommunes
+  )
   const [products, setProducts] = useState<Product[]>(cachedPublicBootstrap?.products ?? [])
   const [orders, setOrders] = useState<Order[]>([])
   const [reviews, setReviews] = useState<Review[]>(cachedPublicBootstrap?.reviews ?? [])
@@ -447,7 +506,9 @@ export default function App() {
   const [deletedProducts, setDeletedProducts] = useState<Product[]>([])
   const [deletedReviews, setDeletedReviews] = useState<Review[]>([])
   const [messages, setMessages] = useState<ContactMessage[]>([])
-  const [shippingRates, setShippingRates] = useState<ShippingRates>(cachedPublicBootstrap?.shippingRates ?? defaultShippingRates)
+  const [shippingRates, setShippingRates] = useState<ShippingRates>(
+    cachedPublicBootstrap?.shippingRates ?? buildShippingRatesFromCommunes(cachedPublicBootstrap?.deliveryCommunes ?? fallbackDeliveryCommunes)
+  )
   const [cart, setCart] = useLocalStorage<CartItem[]>('yele-cart', [])
 
   const [path, setPath] = useState(currentPathname)
@@ -461,7 +522,7 @@ export default function App() {
   const [orderForm, setOrderForm] = useState({
     customerName: '',
     phone: '',
-    commune: Object.keys(cachedPublicBootstrap?.shippingRates ?? defaultShippingRates)[0],
+    commune: Object.keys(cachedPublicBootstrap?.shippingRates ?? buildShippingRatesFromCommunes(cachedPublicBootstrap?.deliveryCommunes ?? fallbackDeliveryCommunes))[0] ?? '',
     addressLine: '',
     deliveryNotes: ''
   })
@@ -479,8 +540,10 @@ export default function App() {
   const [settingsPasswordForm, setSettingsPasswordForm] = useState(emptyPasswordForm)
   const [settingsPasswordError, setSettingsPasswordError] = useState('')
   const [settingsPasswordSuccess, setSettingsPasswordSuccess] = useState('')
-  const [shippingForm, setShippingForm] = useState<ShippingRates>(cachedPublicBootstrap?.shippingRates ?? defaultShippingRates)
-  const [shippingSettingsMessage, setShippingSettingsMessage] = useState('')
+  const [deliveryCommuneForm, setDeliveryCommuneForm] = useState(emptyDeliveryCommuneForm)
+  const [editingDeliveryCommuneId, setEditingDeliveryCommuneId] = useState<string | null>(null)
+  const [deliveryCommuneSearch, setDeliveryCommuneSearch] = useState('')
+  const [deliveryCommuneMessage, setDeliveryCommuneMessage] = useState('')
   const [productSuccessMessage, setProductSuccessMessage] = useState('')
   const [collectionSuccessMessage, setCollectionSuccessMessage] = useState('')
   const [showSettingsPasswords, setShowSettingsPasswords] = useState({
@@ -496,6 +559,9 @@ export default function App() {
   const [isDatabaseReady, setIsDatabaseReady] = useState(false)
   const [adminAuthResolved, setAdminAuthResolved] = useState(false)
   const [isPublicBootstrapResolved, setIsPublicBootstrapResolved] = useState(false)
+  const [cartValidation, setCartValidation] = useState<CartValidationResult | null>(null)
+  const [cartValidationLoading, setCartValidationLoading] = useState(false)
+  const [cartValidationError, setCartValidationError] = useState('')
   const galleryInputRef = useRef<HTMLInputElement | null>(null)
   const cameraInputRef = useRef<HTMLInputElement | null>(null)
   const galleryVideoInputRef = useRef<HTMLInputElement | null>(null)
@@ -543,6 +609,7 @@ export default function App() {
           const bootstrap = await fetchAdminBootstrap()
           if (ignore) return
           setCollections(bootstrap.collections)
+          setDeliveryCommunes(bootstrap.deliveryCommunes)
           setProducts(bootstrap.products)
           setOrders(bootstrap.orders)
           setReviews(bootstrap.reviews)
@@ -550,23 +617,24 @@ export default function App() {
           setDeletedProducts(bootstrap.trash.products)
           setDeletedReviews(bootstrap.trash.reviews)
           setMessages(bootstrap.messages)
-          setShippingRates(bootstrap.shippingRates)
-          setShippingForm(bootstrap.shippingRates)
+          setShippingRates(buildShippingRatesFromCommunes(bootstrap.deliveryCommunes))
         } else {
           const bootstrap = await fetchPublicBootstrap()
           if (ignore) return
           setCollections(bootstrap.collections)
+          setDeliveryCommunes(bootstrap.deliveryCommunes)
           setProducts(bootstrap.products)
           setReviews(bootstrap.reviews)
           setDeletedCollections([])
           setDeletedProducts([])
           setDeletedReviews([])
-          setShippingRates(bootstrap.shippingRates)
+          setShippingRates(buildShippingRatesFromCommunes(bootstrap.deliveryCommunes))
           writePublicBootstrapCache({
             collections: bootstrap.collections,
             products: bootstrap.products,
             reviews: bootstrap.reviews,
-            shippingRates: bootstrap.shippingRates
+            deliveryCommunes: bootstrap.deliveryCommunes,
+            shippingRates: buildShippingRatesFromCommunes(bootstrap.deliveryCommunes)
           })
           setIsPublicBootstrapResolved(true)
         }
@@ -583,16 +651,16 @@ export default function App() {
             setCollections(fallbackBootstrap.collections)
             setProducts(fallbackBootstrap.products)
             setReviews(fallbackBootstrap.reviews)
+            setDeliveryCommunes(fallbackBootstrap.deliveryCommunes)
             setShippingRates(fallbackBootstrap.shippingRates)
-            setShippingForm(fallbackBootstrap.shippingRates)
           } else {
             const fallbackData = await loadFallbackData()
             if (ignore) return
             setCollections(fallbackData.initialCollections)
             setProducts(fallbackData.initialProducts)
             setReviews(fallbackData.initialReviews)
-            setShippingRates(fallbackData.shippingByCommune)
-            setShippingForm(fallbackData.shippingByCommune)
+            setDeliveryCommunes(fallbackData.initialDeliveryCommunes)
+            setShippingRates(buildShippingRatesFromCommunes(fallbackData.initialDeliveryCommunes))
           }
 
           setDeletedCollections([])
@@ -603,12 +671,12 @@ export default function App() {
           const fallbackData = await loadFallbackData()
           if (ignore) return
           setCollections(fallbackData.initialCollections)
+          setDeliveryCommunes(fallbackData.initialDeliveryCommunes)
           setProducts(fallbackData.initialProducts)
           setReviews(fallbackData.initialReviews)
           setOrders(fallbackData.initialOrders)
           setMessages(fallbackData.initialMessages)
-          setShippingRates(fallbackData.shippingByCommune)
-          setShippingForm(fallbackData.shippingByCommune)
+          setShippingRates(buildShippingRatesFromCommunes(fallbackData.initialDeliveryCommunes))
         }
         if (isAdminPath) {
           showToast('Mode local actif', 'La base ou la session admin n est pas joignable. L interface garde les donnees de demo.')
@@ -731,6 +799,18 @@ export default function App() {
   )
 
   const activeReviews = useMemo(() => reviews.filter((review) => !review.deletedAt), [reviews])
+  const activeDeliveryCommunes = useMemo(
+    () => deliveryCommunes.filter((commune) => commune.estActive),
+    [deliveryCommunes]
+  )
+  const productMap = useMemo(
+    () =>
+      activeProducts.reduce<Record<string, Product>>((accumulator, product) => {
+        accumulator[product.id] = product
+        return accumulator
+      }, {}),
+    [activeProducts]
+  )
 
   const filteredProducts = useMemo(() => {
     return activeProducts.filter((product) => {
@@ -743,9 +823,24 @@ export default function App() {
     })
   }, [activeProducts, category, search])
 
-  const subtotal = useMemo(() => cart.reduce((sum, item) => sum + item.price * item.quantity, 0), [cart])
-  const shipping = shippingRates[orderForm.commune] ?? 0
-  const total = subtotal + shipping
+  const filteredDeliveryCommunes = useMemo(() => {
+    const query = deliveryCommuneSearch.trim().toLowerCase()
+    if (!query) return deliveryCommunes
+    return deliveryCommunes.filter((commune) => commune.nom.toLowerCase().includes(query))
+  }, [deliveryCommunes, deliveryCommuneSearch])
+
+  const subtotal = cartValidation?.sousTotal ?? cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
+  const shipping = cartValidation?.fraisLivraison ?? (shippingRates[orderForm.commune] ?? 0)
+  const total = cartValidation?.total ?? (subtotal + shipping)
+  const cartValidationItemsByKey = useMemo(
+    () =>
+      (cartValidation?.items ?? []).reduce<Record<string, CartValidationResult['items'][number]>>((accumulator, item) => {
+        accumulator[`${item.productId}-${item.color}-${item.size}`] = item
+        return accumulator
+      }, {}),
+    [cartValidation]
+  )
+  const cartCanCheckout = cartValidation?.peutCommander ?? true
 
   const averageRating = useMemo(() => {
     if (!activeReviews.length) return 0
@@ -909,64 +1004,169 @@ export default function App() {
     setPreviewProductId(productId)
   }
 
+  const syncCartWithServer = async (nextItems: CartItem[], nextCommune?: string) => {
+    if (!isDatabaseReady) {
+      setCartValidation(null)
+      setCartValidationError('')
+      return null
+    }
+
+    setCartValidationLoading(true)
+    setCartValidationError('')
+
+    try {
+      const validation = await validateCartRequest(nextItems, nextCommune ?? orderForm.commune)
+      setCartValidation(validation)
+      setDeliveryCommunes(validation.communes)
+      setShippingRates(buildShippingRatesFromCommunes(validation.communes))
+
+      if (validation.communeSelectionnee && validation.communeSelectionnee !== orderForm.commune) {
+        setOrderForm((current) => ({ ...current, commune: validation.communeSelectionnee ?? current.commune }))
+      }
+
+      setCart((current) => {
+        const sourceItems = nextItems === cart ? current : nextItems
+        return sourceItems
+          .map((item) => {
+            const validated = validation.items.find(
+              (entry) => entry.productId === item.productId && entry.color === item.color && entry.size === item.size
+            )
+
+            if (!validated) return item
+
+            return {
+              productId: validated.productId,
+              name: validated.name,
+              price: validated.price,
+              color: validated.color,
+              size: validated.size,
+              quantity: validated.estDisponible ? validated.quantity : item.quantity,
+              image: validated.image
+            }
+          })
+          .filter((item) => item.quantity > 0)
+      })
+
+      return validation
+    } catch (error) {
+      console.error(error)
+      setCartValidationError('Impossible de verifier le panier pour le moment.')
+      return null
+    } finally {
+      setCartValidationLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!isCartOpen) return
+    void syncCartWithServer(cart, orderForm.commune)
+  }, [isCartOpen, isDatabaseReady])
+
+  useEffect(() => {
+    if (!isCartOpen || !cart.length) return
+    void syncCartWithServer(cart, orderForm.commune)
+  }, [orderForm.commune])
+
   const addToCart = (product: Product) => {
+    if (product.stock <= 0) {
+      showToast('Rupture de stock', 'Ce produit est actuellement en rupture de stock.')
+      return
+    }
+
     const selected = selectedOptions[product.id] ?? {
       color: product.colors[0] ?? 'Unique',
       size: product.sizes[0] ?? 'Unique',
       image: product.image
     }
 
-    setCart((current) => {
-      const existing = current.find(
+    const isBag = isBagCategory(product.category)
+    const currentItems = [...cart]
+    const existing = currentItems.find((item) =>
+      isBag ? item.productId === product.id : item.productId === product.id && item.color === selected.color && item.size === selected.size
+    )
+
+    if (isBag && existing) {
+      showToast('Sac deja ajoute', 'Ce sac est deja present dans votre panier.')
+      setIsCartOpen(true)
+      return
+    }
+
+    const nextItems = existing
+      ? currentItems.map((item) =>
+          item === existing ? { ...item, quantity: Math.min(item.quantity + 1, Math.max(product.stock, 1)) } : item
+        )
+      : [
+          ...currentItems,
+          {
+            productId: product.id,
+            name: product.name,
+            price: product.price,
+            color: selected.color,
+            size: selected.size,
+            quantity: 1,
+            image: product.image
+          }
+        ]
+
+    if (!isDatabaseReady) {
+      setCart(nextItems)
+      setIsCartOpen(true)
+      showToast('Ajoute au panier', `${product.name} rejoint votre selection.`)
+      return
+    }
+
+    void (async () => {
+      const validation = await syncCartWithServer(nextItems, orderForm.commune)
+      if (!validation) return
+
+      const validatedItem = validation.items.find(
         (item) => item.productId === product.id && item.color === selected.color && item.size === selected.size
       )
 
-      if (existing) {
-        return current.map((item) =>
-          item === existing ? { ...item, quantity: Math.min(item.quantity + 1, product.stock) } : item
-        )
+      if (validatedItem?.message) {
+        showToast(validatedItem.estDisponible ? 'Panier mis a jour' : 'Produit indisponible', validatedItem.message)
+      } else {
+        showToast('Ajoute au panier', `${product.name} rejoint votre selection.`)
       }
 
-      return [
-        ...current,
-        {
-          productId: product.id,
-          name: product.name,
-          price: product.price,
-          color: selected.color,
-          size: selected.size,
-          quantity: 1,
-          image: product.image
-        }
-      ]
-    })
-
-    setIsCartOpen(true)
+      setIsCartOpen(true)
+    })()
   }
 
   const addPreviewProductToCart = () => {
     if (!previewProduct) return
     addToCart(previewProduct)
     setPreviewProductId(null)
-    showToast('Ajoute au panier', `${previewProduct.name} rejoint votre selection.`)
   }
 
   const updateCartQuantity = (productId: string, color: string, size: string, delta: number) => {
-    setCart((current) =>
-      current
-        .map((item) =>
-          item.productId === productId && item.color === color && item.size === size
-            ? { ...item, quantity: item.quantity + delta }
-            : item
-        )
-        .filter((item) => item.quantity > 0)
-    )
+    const product = productMap[productId]
+    if (product && isBagCategory(product.category)) return
+
+    const nextItems = cart
+      .map((item) => {
+        if (!(item.productId === productId && item.color === color && item.size === size)) return item
+        const maxQuantity = product?.stock ?? item.quantity + delta
+        return { ...item, quantity: Math.max(0, Math.min(item.quantity + delta, maxQuantity)) }
+      })
+      .filter((item) => item.quantity > 0)
+
+    setCart(nextItems)
+    if (isCartOpen && isDatabaseReady) {
+      void syncCartWithServer(nextItems, orderForm.commune)
+    }
   }
 
   const removeFromCart = (productId: string, color: string, size: string) => {
-    setCart((current) =>
-      current.filter((item) => !(item.productId === productId && item.color === color && item.size === size))
-    )
+    const nextItems = cart.filter((item) => !(item.productId === productId && item.color === color && item.size === size))
+    setCart(nextItems)
+    setCartValidation((current) => {
+      if (!current) return current
+      return {
+        ...current,
+        items: current.items.filter((item) => !(item.productId === productId && item.color === color && item.size === size))
+      }
+    })
   }
 
   const submitOrder = () => {
@@ -990,6 +1190,14 @@ export default function App() {
 
     void (async () => {
       try {
+        if (isDatabaseReady) {
+          const validation = await syncCartWithServer(cart, orderForm.commune)
+          if (!validation?.peutCommander) {
+            showToast('Commande bloquee', validation?.messagePanier || 'Le panier doit etre corrige avant validation.')
+            return
+          }
+        }
+
         const savedOrder = isDatabaseReady ? await createOrderRequest(nextOrder) : nextOrder
 
         setOrders((current) => [savedOrder, ...current])
@@ -1018,10 +1226,11 @@ export default function App() {
         )
 
         setCart([])
+        setCartValidation(null)
         setOrderForm({
           customerName: '',
           phone: '',
-          commune: communeOptions[0] ?? Object.keys(defaultShippingRates)[0],
+          commune: communeOptions[0] ?? activeDeliveryCommunes[0]?.nom ?? '',
           addressLine: '',
           deliveryNotes: ''
         })
@@ -1585,38 +1794,106 @@ export default function App() {
     })()
   }
 
-  const handleShippingSettingsSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const resetDeliveryCommuneForm = () => {
+    setEditingDeliveryCommuneId(null)
+    setDeliveryCommuneForm(emptyDeliveryCommuneForm)
+    setDeliveryCommuneMessage('')
+  }
+
+  const saveDeliveryCommune = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    setShippingSettingsMessage('')
+    setDeliveryCommuneMessage('')
 
-    const sanitizedRates = Object.entries(shippingForm).reduce<ShippingRates>((accumulator, [commune, amount]) => {
-      accumulator[commune] = Math.max(0, Number(amount) || 0)
-      return accumulator
-    }, {})
-
-    if (!isDatabaseReady) {
-      setShippingSettingsMessage('Base indisponible. Relancez l API avant d enregistrer les tarifs.')
+    const normalizedNom = deliveryCommuneForm.nom.trim()
+    if (!normalizedNom) {
+      setDeliveryCommuneMessage('Le nom de la commune est obligatoire.')
       return
+    }
+
+    const payload = {
+      id: (editingDeliveryCommuneId ?? deliveryCommuneForm.id) || `COM-${Date.now()}`,
+      nom: normalizedNom,
+      prixLivraison: Math.max(0, Number(deliveryCommuneForm.prixLivraison) || 0),
+      estActive: deliveryCommuneForm.estActive
     }
 
     void (async () => {
       try {
-        const savedRates = await updateShippingRatesRequest(sanitizedRates)
-        setShippingRates(savedRates)
-        setShippingForm(savedRates)
-        setShippingSettingsMessage('Tarifs de livraison mis a jour.')
+        const saved = isDatabaseReady && editingDeliveryCommuneId
+          ? await updateDeliveryCommuneRequest(payload)
+          : isDatabaseReady
+            ? await createDeliveryCommuneRequest(payload)
+            : {
+                ...payload,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+              }
 
-        if (!(orderForm.commune in savedRates)) {
-          const firstCommune = Object.keys(savedRates)[0]
-          if (firstCommune) {
-            setOrderForm((current) => ({ ...current, commune: firstCommune }))
-          }
-        }
-
-        showToast('Livraisons mises a jour', 'Les nouveaux prix sont deja actifs dans le panier.')
+        const nextCommunes = deliveryCommunes.some((item) => item.id === saved.id)
+          ? deliveryCommunes.map((item) => (item.id === saved.id ? saved : item))
+          : [...deliveryCommunes, saved]
+        setDeliveryCommunes(nextCommunes)
+        setShippingRates(buildShippingRatesFromCommunes(nextCommunes))
+        resetDeliveryCommuneForm()
+        showToast(
+          editingDeliveryCommuneId ? 'Commune mise a jour' : 'Commune ajoutee',
+          `${saved.nom} est disponible dans la configuration des livraisons.`
+        )
       } catch (error) {
         console.error(error)
-        setShippingSettingsMessage('Impossible d enregistrer les nouveaux tarifs pour le moment.')
+        setDeliveryCommuneMessage('Impossible d enregistrer cette commune pour le moment.')
+      }
+    })()
+  }
+
+  const startEditingDeliveryCommune = (commune: DeliveryCommune) => {
+    setEditingDeliveryCommuneId(commune.id)
+    setDeliveryCommuneMessage('')
+    setDeliveryCommuneForm({
+      id: commune.id,
+      nom: commune.nom,
+      prixLivraison: commune.prixLivraison,
+      estActive: commune.estActive
+    })
+    navigate('/admin/delivery-communes')
+  }
+
+  const toggleDeliveryCommuneStatus = (commune: DeliveryCommune) => {
+    void (async () => {
+      try {
+        const updated = isDatabaseReady
+          ? await updateDeliveryCommuneStatusRequest(commune.id, !commune.estActive)
+          : { ...commune, estActive: !commune.estActive, updatedAt: new Date().toISOString() }
+        const nextCommunes = deliveryCommunes.map((item) => (item.id === commune.id ? updated : item))
+        setDeliveryCommunes(nextCommunes)
+        setShippingRates(buildShippingRatesFromCommunes(nextCommunes))
+        showToast(
+          updated.estActive ? 'Commune activee' : 'Commune desactivee',
+          `La livraison ${updated.estActive ? 'est de nouveau ouverte' : 'est temporairement fermee'} pour ${updated.nom}.`
+        )
+      } catch (error) {
+        console.error(error)
+        showToast('Mise a jour impossible', 'Impossible de changer le statut de cette commune.')
+      }
+    })()
+  }
+
+  const removeDeliveryCommune = (commune: DeliveryCommune) => {
+    void (async () => {
+      try {
+        if (isDatabaseReady) {
+          await deleteDeliveryCommuneRequest(commune.id)
+        }
+        const nextCommunes = deliveryCommunes.filter((item) => item.id !== commune.id)
+        setDeliveryCommunes(nextCommunes)
+        setShippingRates(buildShippingRatesFromCommunes(nextCommunes))
+        if (editingDeliveryCommuneId === commune.id) {
+          resetDeliveryCommuneForm()
+        }
+        showToast('Commune supprimee', `${commune.nom} a ete retiree des livraisons.`)
+      } catch (error) {
+        console.error(error)
+        showToast('Suppression impossible', 'Impossible de supprimer cette commune.')
       }
     })()
   }
@@ -1885,6 +2162,23 @@ export default function App() {
                   />
                 ) : null}
 
+                {adminPath === '/admin/delivery-communes' ? (
+                  <AdminDeliveryCommunesSection
+                    deliveryCommunes={filteredDeliveryCommunes}
+                    deliveryCommuneForm={deliveryCommuneForm}
+                    editingDeliveryCommuneId={editingDeliveryCommuneId}
+                    deliveryCommuneSearch={deliveryCommuneSearch}
+                    deliveryCommuneMessage={deliveryCommuneMessage}
+                    setDeliveryCommuneForm={setDeliveryCommuneForm}
+                    setDeliveryCommuneSearch={setDeliveryCommuneSearch}
+                    saveDeliveryCommune={saveDeliveryCommune}
+                    resetDeliveryCommuneForm={resetDeliveryCommuneForm}
+                    startEditingDeliveryCommune={startEditingDeliveryCommune}
+                    toggleDeliveryCommuneStatus={toggleDeliveryCommuneStatus}
+                    removeDeliveryCommune={removeDeliveryCommune}
+                  />
+                ) : null}
+
                 {adminPath === '/admin/reviews' ? (
                   <AdminReviewsSection reviews={reviews} deleteReview={deleteAdminReview} />
                 ) : null}
@@ -1912,15 +2206,11 @@ export default function App() {
                     settingsPasswordError={settingsPasswordError}
                     settingsPasswordSuccess={settingsPasswordSuccess}
                     showSettingsPasswords={showSettingsPasswords}
-                    shippingForm={shippingForm}
-                    shippingSettingsMessage={shippingSettingsMessage}
                     setSettingsPasswordForm={setSettingsPasswordForm}
                     setSettingsPasswordError={setSettingsPasswordError}
                     setSettingsPasswordSuccess={setSettingsPasswordSuccess}
                     setShowSettingsPasswords={setShowSettingsPasswords}
-                    setShippingForm={setShippingForm}
                     handleAdminPasswordChange={handleAdminPasswordChange}
-                    handleShippingSettingsSubmit={handleShippingSettingsSubmit}
                   />
                 ) : null}
               </Suspense>
@@ -2198,6 +2488,7 @@ export default function App() {
                       selectedColor={selection.color}
                       selectedSize={selection.size}
                       swatchColor={swatchColor}
+                      isOutOfStock={product.stock <= 0}
                       onColorSelect={(item) =>
                         setSelectedOptions((current) => ({
                           ...current,
@@ -2536,7 +2827,9 @@ export default function App() {
                 </div>
                 <div className="rounded-[20px] border border-[#dfd3e4] bg-[#fffdfd] p-4">
                   <p className="text-[12px] font-semibold tracking-[0.18em] text-[#f04cb3]">STOCK</p>
-                  <p className="mt-3 text-sm leading-7 text-[#5f556a]">{previewProduct.stock} pieces disponibles</p>
+                  <p className="mt-3 text-sm leading-7 text-[#5f556a]">
+                    {previewProduct.stock > 0 ? `${previewProduct.stock} pieces disponibles` : 'Rupture de stock'}
+                  </p>
                 </div>
               </div>
 
@@ -2599,8 +2892,15 @@ export default function App() {
               </div>
 
               <div className="mt-6 flex flex-wrap gap-3">
-                <motion.button type="button" onClick={addPreviewProductToCart} className="primary-button px-6" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
-                  Ajouter au panier
+                <motion.button
+                  type="button"
+                  onClick={addPreviewProductToCart}
+                  className="primary-button px-6 disabled:cursor-not-allowed disabled:opacity-50"
+                  whileHover={previewProduct.stock > 0 ? { scale: 1.03 } : undefined}
+                  whileTap={previewProduct.stock > 0 ? { scale: 0.97 } : undefined}
+                  disabled={previewProduct.stock <= 0}
+                >
+                  {previewProduct.stock > 0 ? 'Ajouter au panier' : 'Rupture de stock'}
                 </motion.button>
                 <motion.button type="button" onClick={() => setPreviewProductId(null)} className="secondary-button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
                   Fermer
@@ -2667,7 +2967,14 @@ export default function App() {
             <div className="mb-4 flex items-center justify-between gap-4">
               <p className="text-[11px] font-semibold tracking-[0.18em] text-[#8a7f95]">VOS ARTICLES SELECTIONNES</p>
               {cart.length ? (
-                <button type="button" onClick={() => setCart([])} className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#f04cb3] transition hover:text-[#241f2b]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCart([])
+                    setCartValidation(null)
+                  }}
+                  className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#f04cb3] transition hover:text-[#241f2b]"
+                >
                   Vider le panier
                 </button>
               ) : null}
@@ -2675,8 +2982,13 @@ export default function App() {
 
             {cart.length ? (
               <div className="space-y-3">
-                {cart.map((item) => (
-                  <div key={`${item.productId}-${item.color}-${item.size}`} className="cart-line-item">
+                {cart.map((item) => {
+                  const validationItem = cartValidationItemsByKey[`${item.productId}-${item.color}-${item.size}`]
+                  const isBag = validationItem?.estSac || isBagCategory(productMap[item.productId]?.category ?? '')
+                  const isUnavailable = validationItem ? !validationItem.estDisponible : false
+
+                  return (
+                    <div key={`${item.productId}-${item.color}-${item.size}`} className="cart-line-item">
                     <img
                       src={item.image}
                       alt={item.name}
@@ -2705,30 +3017,48 @@ export default function App() {
                       </div>
 
                       <div className="mt-4 flex items-center justify-between gap-3">
-                        <div className="cart-quantity-control">
-                          <button
-                            type="button"
-                            onClick={() => updateCartQuantity(item.productId, item.color, item.size, -1)}
-                            className="cart-quantity-button"
-                            aria-label="Diminuer la quantite"
-                          >
-                            <Minus size={14} />
-                          </button>
-                          <span className="w-6 text-center text-sm font-semibold text-[#241f2b]">{item.quantity}</span>
-                          <button
-                            type="button"
-                            onClick={() => updateCartQuantity(item.productId, item.color, item.size, 1)}
-                            className="cart-quantity-button"
-                            aria-label="Augmenter la quantite"
-                          >
-                            <Plus size={14} />
-                          </button>
-                        </div>
+                        {isBag ? (
+                          <div className="cart-detail-pill">Quantite fixe : 1</div>
+                        ) : (
+                          <div className="cart-quantity-control">
+                            <button
+                              type="button"
+                              onClick={() => updateCartQuantity(item.productId, item.color, item.size, -1)}
+                              className="cart-quantity-button"
+                              aria-label="Diminuer la quantite"
+                              disabled={isUnavailable}
+                            >
+                              <Minus size={14} />
+                            </button>
+                            <span className="w-6 text-center text-sm font-semibold text-[#241f2b]">{item.quantity}</span>
+                            <button
+                              type="button"
+                              onClick={() => updateCartQuantity(item.productId, item.color, item.size, 1)}
+                              className="cart-quantity-button"
+                              aria-label="Augmenter la quantite"
+                              disabled={isUnavailable}
+                            >
+                              <Plus size={14} />
+                            </button>
+                          </div>
+                        )}
                         <p className="text-[16px] font-semibold text-[#ff52b4]">{currency.format(item.price * item.quantity)}</p>
                       </div>
+                      {validationItem?.message ? (
+                        <p
+                          className={`mt-3 rounded-[16px] px-3 py-2 text-xs ${
+                            validationItem.estDisponible
+                              ? 'border border-[#f2d6e4] bg-[#fff6fa] text-[#b43182]'
+                              : 'border border-[#f1bfd8] bg-[#fff1f7] text-[#b43182]'
+                          }`}
+                        >
+                          {validationItem.message}
+                        </p>
+                      ) : null}
                     </div>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             ) : (
               <div className="rounded-[22px] border border-dashed border-[#d8cade] bg-white/80 p-6 text-sm text-[#8a7f95]">
@@ -2738,6 +3068,24 @@ export default function App() {
           </div>
 
           <div className="cart-panel-section space-y-4">
+            {cartValidationLoading ? (
+              <div className="rounded-[18px] border border-[#ecd3e4] bg-white/80 px-4 py-3 text-sm text-[#7a6f86]">
+                Verification du panier en cours...
+              </div>
+            ) : null}
+
+            {cartValidationError ? (
+              <div className="rounded-[18px] border border-[#f1bfd8] bg-[#fff1f7] px-4 py-3 text-sm text-[#b43182]">
+                {cartValidationError}
+              </div>
+            ) : null}
+
+            {cartValidation?.messagePanier ? (
+              <div className="rounded-[18px] border border-[#f1bfd8] bg-[#fff1f7] px-4 py-3 text-sm text-[#b43182]">
+                {cartValidation.messagePanier}
+              </div>
+            ) : null}
+
             <div className="cart-location-row">
               <div className="flex items-center gap-2 text-sm font-medium text-[#5f556a]">
                 <MapPin size={15} className="text-[#f04cb3]" />
@@ -2806,7 +3154,12 @@ export default function App() {
           </div>
         </div>
 
-        <button type="button" onClick={submitOrder} className="cart-whatsapp-button mt-5 w-full" disabled={!cart.length}>
+        <button
+          type="button"
+          onClick={submitOrder}
+          className="cart-whatsapp-button mt-5 w-full disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={!cart.length || cartValidationLoading || !cartCanCheckout}
+        >
           <Phone size={18} />
           Commander via WhatsApp
           <ArrowRight size={18} />

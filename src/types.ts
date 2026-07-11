@@ -1,6 +1,15 @@
 export type Category = 'Vetements' | 'Sacs' | 'Parfums' | 'Accessoires'
 export type OrderStatus = 'En attente' | 'Livree' | 'Annulee'
 
+export interface DeliveryCommune {
+  id: string
+  nom: string
+  prixLivraison: number
+  estActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
 export interface Collection {
   id: string
   name: string
@@ -39,6 +48,25 @@ export interface CartItem {
   size: string
   quantity: number
   image: string
+}
+
+export interface CartValidationItem extends CartItem {
+  category: Category
+  stockDisponible: number
+  estDisponible: boolean
+  estSac: boolean
+  message?: string
+}
+
+export interface CartValidationResult {
+  items: CartValidationItem[]
+  communes: DeliveryCommune[]
+  communeSelectionnee?: string
+  sousTotal: number
+  fraisLivraison: number
+  total: number
+  peutCommander: boolean
+  messagePanier?: string
 }
 
 export interface Order {

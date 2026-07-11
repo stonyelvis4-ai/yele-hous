@@ -1,4 +1,4 @@
-import { Collection, ContactMessage, Order, OrderStatus, Product, Review, ShippingRates } from '../types'
+import { CartItem, CartValidationResult, Collection, ContactMessage, DeliveryCommune, Order, OrderStatus, Product, Review, ShippingRates } from '../types'
 
 const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? '/api'
 
@@ -47,6 +47,7 @@ export function fetchPublicBootstrap() {
     collections: Collection[]
     products: Product[]
     reviews: Review[]
+    deliveryCommunes: DeliveryCommune[]
     shippingRates: ShippingRates
   }>('/public/bootstrap')
 }
@@ -58,6 +59,7 @@ export function fetchAdminBootstrap() {
     orders: Order[]
     reviews: Review[]
     messages: ContactMessage[]
+    deliveryCommunes: DeliveryCommune[]
     shippingRates: ShippingRates
     trash: {
       collections: Collection[]
@@ -93,6 +95,38 @@ export function updateShippingRates(shippingRates: ShippingRates) {
   return request<ShippingRates>('/settings/shipping', {
     method: 'PUT',
     body: JSON.stringify({ shippingRates })
+  })
+}
+
+export function createDeliveryCommune(commune: Pick<DeliveryCommune, 'id' | 'nom' | 'prixLivraison' | 'estActive'>) {
+  return request<DeliveryCommune>('/delivery-communes', {
+    method: 'POST',
+    body: JSON.stringify(commune)
+  })
+}
+
+export function updateDeliveryCommune(commune: Pick<DeliveryCommune, 'id' | 'nom' | 'prixLivraison' | 'estActive'>) {
+  return request<DeliveryCommune>(`/delivery-communes/${commune.id}`, {
+    method: 'PUT',
+    body: JSON.stringify(commune)
+  })
+}
+
+export function updateDeliveryCommuneStatus(id: string, estActive: boolean) {
+  return request<DeliveryCommune>(`/delivery-communes/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ estActive })
+  })
+}
+
+export function deleteDeliveryCommune(id: string) {
+  return request<void>(`/delivery-communes/${id}`, { method: 'DELETE' })
+}
+
+export function validateCart(items: CartItem[], commune?: string) {
+  return request<CartValidationResult>('/cart/validate', {
+    method: 'POST',
+    body: JSON.stringify({ items, commune })
   })
 }
 

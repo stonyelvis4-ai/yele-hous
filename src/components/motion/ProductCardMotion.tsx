@@ -19,6 +19,7 @@ interface ProductCardMotionProps {
   selectedColor: string
   selectedSize: string
   swatchColor: (name: string) => string
+  isOutOfStock: boolean
   onColorSelect: (color: string) => void
   onSizeChange: (size: string) => void
   onPreview: () => void
@@ -40,6 +41,7 @@ export function ProductCardMotion({
   selectedColor,
   selectedSize,
   swatchColor,
+  isOutOfStock,
   onColorSelect,
   onSizeChange,
   onPreview,
@@ -92,7 +94,7 @@ export function ProductCardMotion({
           />
         )}
         <div className="absolute left-4 top-4">
-          <AnimatedBadge>{badge}</AnimatedBadge>
+          <AnimatedBadge>{isOutOfStock ? 'Rupture de stock' : badge}</AnimatedBadge>
         </div>
       </button>
 
@@ -142,7 +144,12 @@ export function ProductCardMotion({
           >
             Voir
           </motion.button>
-          <select value={selectedSize} onChange={(event) => onSizeChange(event.target.value)} className="mini-select">
+          <select
+            value={selectedSize}
+            onChange={(event) => onSizeChange(event.target.value)}
+            className="mini-select"
+            disabled={isOutOfStock}
+          >
             {sizes.map((item) => (
               <option key={item} value={item} className="bg-white text-[#241f2b]">
                 {item}
@@ -150,8 +157,15 @@ export function ProductCardMotion({
             ))}
           </select>
 
-          <motion.button type="button" onClick={onAdd} className="primary-button flex-1" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
-            Ajouter
+          <motion.button
+            type="button"
+            onClick={onAdd}
+            className="primary-button flex-1 disabled:cursor-not-allowed disabled:opacity-50"
+            whileHover={isOutOfStock ? undefined : { scale: 1.03 }}
+            whileTap={isOutOfStock ? undefined : { scale: 0.97 }}
+            disabled={isOutOfStock}
+          >
+            {isOutOfStock ? 'Indisponible' : 'Ajouter'}
           </motion.button>
         </div>
       </div>

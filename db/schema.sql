@@ -116,12 +116,30 @@ CREATE TABLE IF NOT EXISTS messages (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS delivery_communes (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
+  delivery_price NUMERIC(12, 2) NOT NULL CHECK (delivery_price >= 0),
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS shipping_rates (
   commune TEXT PRIMARY KEY,
   amount NUMERIC(12, 2) NOT NULL CHECK (amount >= 0),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+INSERT INTO delivery_communes (id, name, delivery_price, is_active)
+SELECT
+  'COM-' || ROW_NUMBER() OVER (ORDER BY commune),
+  commune,
+  amount,
+  TRUE
+FROM shipping_rates
+ON CONFLICT (name) DO NOTHING;
 
 CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
 CREATE INDEX IF NOT EXISTS idx_products_best_seller ON products(is_best_seller);
@@ -134,6 +152,8 @@ CREATE INDEX IF NOT EXISTS idx_reviews_rating ON reviews(rating);
 CREATE INDEX IF NOT EXISTS idx_reviews_deleted_at ON reviews(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_messages_is_read ON messages(is_read);
 CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_delivery_communes_is_active ON delivery_communes(is_active);
+CREATE INDEX IF NOT EXISTS idx_delivery_communes_name ON delivery_communes(name);
 
 INSERT INTO collections (id, name, slug, description, image, is_featured)
 VALUES
@@ -163,12 +183,12 @@ VALUES
   )
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO shipping_rates (commune, amount)
+INSERT INTO delivery_communes (id, name, delivery_price, is_active)
 VALUES
-  ('Cocody', 5000),
-  ('Plateau', 4500),
-  ('Marcory', 3500),
-  ('DeuxPlateaux', 4000),
-  ('Zone4', 3000),
-  ('Yopougon', 6000)
-ON CONFLICT (commune) DO NOTHING;
+  ('COM-1', 'Cocody', 5000, TRUE),
+  ('COM-2', 'Plateau', 4500, TRUE),
+  ('COM-3', 'Marcory', 3500, TRUE),
+  ('COM-4', 'DeuxPlateaux', 4000, TRUE),
+  ('COM-5', 'Zone4', 3000, TRUE),
+  ('COM-6', 'Yopougon', 6000, TRUE)
+ON CONFLICT (id) DO NOTHING;

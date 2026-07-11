@@ -1,4 +1,4 @@
-import { Collection, ContactMessage, Order, Product, Review } from './types'
+import { Collection, ContactMessage, DeliveryCommune, Order, Product, Review } from './types'
 
 export const shippingByCommune: Record<string, number> = {
   Cocody: 5000,
@@ -8,6 +8,15 @@ export const shippingByCommune: Record<string, number> = {
   Zone4: 3000,
   Yopougon: 6000
 }
+
+export const initialDeliveryCommunes: DeliveryCommune[] = Object.entries(shippingByCommune).map(([nom, prixLivraison], index) => ({
+  id: `COM-${index + 1}`,
+  nom,
+  prixLivraison,
+  estActive: true,
+  createdAt: new Date('2026-07-01T00:00:00.000Z').toISOString(),
+  updatedAt: new Date('2026-07-01T00:00:00.000Z').toISOString()
+}))
 
 export const initialCollections: Collection[] = [
   {

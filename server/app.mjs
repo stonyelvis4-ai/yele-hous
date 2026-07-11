@@ -53,6 +53,7 @@ const MAX_MESSAGE_LENGTH = 4000
 const MAX_PHONE_LENGTH = 40
 const MAX_COLOR_OR_SIZE_LENGTH = 80
 const MAX_MEDIA_LIST_LENGTH = 12
+const MAX_COMMUNE_NAME_LENGTH = 120
 const defaultShippingRates = {
   Cocody: 5000,
   Plateau: 4500,
@@ -90,12 +91,22 @@ const defaultCollections = [
     isFeatured: true
   }
 ]
+const defaultDeliveryCommunes = Object.entries(defaultShippingRates).map(([nom, prixLivraison], index) => ({
+  id: `COM-${index + 1}`,
+  nom,
+  prixLivraison,
+  estActive: true
+}))
 
 function defaultProductName(category) {
   if (category === 'Vetements') return 'Nouvel article couture'
   if (category === 'Sacs') return 'Nouveau sac signature'
   if (category === 'Parfums') return 'Nouveau parfum signature'
   return 'Nouvel accessoire signature'
+}
+
+function isBagCategory(category) {
+  return String(category ?? '').trim().toLowerCase() === 'sacs'
 }
 
 function productFallbackByCategory(category) {
@@ -331,6 +342,17 @@ function mapMessage(row) {
   }
 }
 
+function mapDeliveryCommune(row) {
+  return {
+    id: row.id,
+    nom: row.name,
+    prixLivraison: Number(row.delivery_price),
+    estActive: Boolean(row.is_active),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  }
+}
+
 function createHttpError(message, statusCode = 400) {
   const error = new Error(message)
   error.statusCode = statusCode
@@ -356,6 +378,10 @@ function normalizeIdentifier(value, field) {
   const normalized = normalizeText(value, { field, required: true, maxLength: 120 })
   assert(idPattern.test(normalized), `${field} contains invalid characters.`)
   return normalized
+}
+
+function createIdentifier(prefix) {
+  return `${prefix}-${crypto.randomBytes(6).toString('hex')}`
 }
 
 function normalizeMediaField(value, { field, allowEmpty = true, video = false } = {}) {
@@ -403,10 +429,15 @@ function validateStock(value) {
   return normalized
 }
 
-function validateCommune(value) {
-  const normalized = normalizeText(value, { field: 'Commune', required: true, maxLength: 80 })
-  assert(Object.prototype.hasOwnProperty.call(defaultShippingRates, normalized), 'Commune is invalid.')
-  return normalized
+function normalizeCommuneBody(body) {
+  const nom = normalizeText(body.nom, { field: 'Nom de la commune', required: true, maxLength: MAX_COMMUNE_NAME_LENGTH })
+
+  return {
+    id: body.id ? normalizeIdentifier(body.id, 'Commune id') : createIdentifier('COM'),
+    nom,
+    prixLivraison: validatePrice(body.prixLivraison, 'Prix de livraison'),
+    estActive: Boolean(body.estActive)
+  }
 }
 
 async function listProducts({ onlyDeleted = false, includeDeleted = false } = {}) {
@@ -446,79 +477,182 @@ async function listMessages() {
   return rows.map(mapMessage)
 }
 
+async function listDeliveryCommunes({ activeOnly = false, client = pool } = {}) {
+  const conditions = []
+  if (activeOnly) conditions.push('is_active = true')
+  const whereClause = conditions.length ? `where ${conditions.join(' and ')}` : ''
+  const { rows } = await client.query(
+    `select * from delivery_communes ${whereClause} order by is_active desc, name asc, created_at asc`
+  )
+  return rows.map(mapDeliveryCommune)
+}
+
 async function listShippingRates() {
-  const { rows } = await pool.query('select commune, amount from shipping_rates order by commune asc')
-  return rows.reduce((accumulator, row) => {
-    accumulator[row.commune] = Number(row.amount)
+  const communes = await listDeliveryCommunes({ activeOnly: true })
+  return communes.reduce((accumulator, commune) => {
+    accumulator[commune.nom] = commune.prixLivraison
     return accumulator
   }, {})
 }
 
-async function buildOrderPricing(items, commune, client) {
-  if (!Array.isArray(items) || !items.length) {
-    const error = new Error('Order must contain at least one item.')
-    error.statusCode = 400
-    throw error
-  }
+async function validateCartPayload(items, commune, { client = pool, lockProducts = false, strict = false } = {}) {
+  assert(Array.isArray(items) && items.length > 0, 'Order must contain at least one item.')
 
-  const shippingRates = await listShippingRates()
-  const shipping = shippingRates[commune]
+  const activeCommunes = await listDeliveryCommunes({ activeOnly: true, client })
+  assert(activeCommunes.length > 0, 'No delivery commune is currently available.', 400)
 
-  if (shipping == null) {
-    const error = new Error('Unknown shipping commune.')
-    error.statusCode = 400
-    throw error
-  }
+  const requestedCommune = normalizeText(commune ?? '', { field: 'Commune', required: false, maxLength: MAX_COMMUNE_NAME_LENGTH })
+  const selectedCommune =
+    activeCommunes.find((entry) => entry.nom === requestedCommune) ??
+    (strict ? null : activeCommunes[0])
+
+  assert(selectedCommune, 'Commune is invalid or currently unavailable.')
+
+  const requestedItems = items.map((item, index) => ({
+    index,
+    productId: normalizeIdentifier(item?.productId, `Order item ${index + 1} product id`),
+    color: normalizeText(item?.color ?? 'Unique', {
+      field: `Order item ${index + 1} color`,
+      required: true,
+      maxLength: MAX_COLOR_OR_SIZE_LENGTH
+    }),
+    size: normalizeText(item?.size ?? 'Unique', {
+      field: `Order item ${index + 1} size`,
+      required: true,
+      maxLength: MAX_COLOR_OR_SIZE_LENGTH
+    }),
+    quantity: (() => {
+      const normalized = Number(item?.quantity)
+      assert(Number.isInteger(normalized) && normalized > 0 && normalized <= 20, `Order item ${index + 1} quantity is invalid.`)
+      return normalized
+    })(),
+    image: normalizeMediaField(item?.image ?? '', { field: `Order item ${index + 1} image`, allowEmpty: true })
+  }))
+
+  const productIds = [...new Set(requestedItems.map((item) => item.productId))]
+  const query = `
+    select id, name, category, price, stock, image, deleted_at
+    from products
+    where id = any($1::text[])
+    ${lockProducts ? 'for update' : ''}
+  `
+  const { rows } = await client.query(query, [productIds])
+  const productMap = new Map(rows.map((row) => [row.id, row]))
 
   let subtotal = 0
+  let canCheckout = true
   const normalizedItems = []
+  const seenBagProductIds = new Set()
 
-  for (const item of items ?? []) {
-    const productId = String(item.productId ?? '').trim()
-    const quantity = Number(item.quantity ?? 0)
+  for (const requestedItem of requestedItems) {
+    const product = productMap.get(requestedItem.productId)
 
-    if (!productId || !Number.isInteger(quantity) || quantity <= 0) {
-      const error = new Error('Invalid order item.')
-      error.statusCode = 400
-      throw error
+    if (!product || product.deleted_at) {
+      if (strict) {
+        throw createHttpError('Ce produit n est plus disponible. Veuillez le retirer du panier avant de continuer.', 400)
+      }
+
+      canCheckout = false
+      normalizedItems.push({
+        productId: requestedItem.productId,
+        name: requestedItem.productId,
+        price: 0,
+        color: requestedItem.color,
+        size: requestedItem.size,
+        quantity: requestedItem.quantity,
+        image: requestedItem.image,
+        category: 'Vetements',
+        stockDisponible: 0,
+        estDisponible: false,
+        estSac: false,
+        message: 'Ce produit n est plus disponible. Veuillez le retirer du panier avant de continuer.'
+      })
+      continue
     }
 
-    const { rows } = await client.query(
-      'select id, name, price, stock, image from products where id = $1 and deleted_at is null limit 1',
-      [productId]
-    )
-    const product = rows[0]
+    const stockDisponible = Number(product.stock)
+    const estSac = isBagCategory(product.category)
+    let quantity = requestedItem.quantity
+    let message = ''
+    let estDisponible = stockDisponible > 0
 
-    if (!product) {
-      const error = new Error('Product not found.')
-      error.statusCode = 400
-      throw error
+    if (estSac && seenBagProductIds.has(product.id)) {
+      if (strict) {
+        throw createHttpError('Un meme sac ne peut etre ajoute qu une seule fois au panier.', 400)
+      }
+      canCheckout = false
+      normalizedItems.push({
+        productId: product.id,
+        name: product.name,
+        price: Number(product.price),
+        color: requestedItem.color || 'Unique',
+        size: requestedItem.size || 'Unique',
+        quantity: 1,
+        image: requestedItem.image || product.image,
+        category: product.category,
+        stockDisponible,
+        estDisponible: false,
+        estSac: true,
+        message: 'Ce sac est deja present dans votre panier.'
+      })
+      continue
     }
 
-    if (Number(product.stock) < quantity) {
-      const error = new Error(`Insufficient stock for ${product.name}.`)
-      error.statusCode = 400
-      throw error
+    if (!estDisponible) {
+      message = 'Ce produit est actuellement en rupture de stock.'
+    } else if (estSac && quantity !== 1) {
+      if (strict) {
+        throw createHttpError('Les sacs sont limites a une quantite de 1 par commande.', 400)
+      }
+      quantity = 1
+      message = 'La quantite de ce sac a ete ramenee a 1.'
+    } else if (quantity > stockDisponible) {
+      if (strict) {
+        throw createHttpError(`Stock insuffisant pour ${product.name}.`, 400)
+      }
+      quantity = stockDisponible
+      message = stockDisponible > 0 ? 'La quantite a ete ajustee au stock disponible.' : 'Ce produit est actuellement en rupture de stock.'
+      estDisponible = stockDisponible > 0
+    }
+
+    if (!estDisponible) {
+      canCheckout = false
+    }
+
+    if (estSac) {
+      seenBagProductIds.add(product.id)
     }
 
     const unitPrice = Number(product.price)
-    subtotal += unitPrice * quantity
+    if (estDisponible) {
+      subtotal += unitPrice * quantity
+    }
+
     normalizedItems.push({
-      productId,
+      productId: product.id,
       name: product.name,
       price: unitPrice,
-      color: String(item.color ?? '').trim() || 'Unique',
-      size: String(item.size ?? '').trim() || 'Unique',
+      color: requestedItem.color || 'Unique',
+      size: requestedItem.size || 'Unique',
       quantity,
-      image: String(item.image ?? '').trim() || product.image
+      image: requestedItem.image || product.image,
+      category: product.category,
+      stockDisponible,
+      estDisponible,
+      estSac,
+      message: message || undefined
     })
   }
 
   return {
     items: normalizedItems,
-    subtotal,
-    shipping,
-    total: subtotal + shipping
+    communes: activeCommunes,
+    communeSelectionnee: selectedCommune.nom,
+    sousTotal: subtotal,
+    fraisLivraison: subtotal > 0 ? selectedCommune.prixLivraison : 0,
+    total: subtotal > 0 ? subtotal + selectedCommune.prixLivraison : 0,
+    peutCommander: canCheckout && subtotal > 0,
+    messagePanier: canCheckout ? '' : 'Ce produit n est plus disponible. Veuillez le retirer du panier avant de continuer.'
   }
 }
 
@@ -662,7 +796,7 @@ function normalizeOrderBody(body) {
     id: normalizeIdentifier(body.id, 'Order id'),
     customerName: normalizeText(body.customerName, { field: 'Customer name', required: true, maxLength: MAX_NAME_LENGTH }),
     phone: normalizeText(body.phone, { field: 'Phone', required: true, maxLength: MAX_PHONE_LENGTH }),
-    commune: validateCommune(body.commune),
+    commune: normalizeText(body.commune, { field: 'Commune', required: true, maxLength: MAX_COMMUNE_NAME_LENGTH }),
     notes: normalizeText(body.notes ?? '', { field: 'Notes', required: false, maxLength: 500 }),
     items: items.map((item, index) => ({
       productId: normalizeIdentifier(item?.productId, `Order item ${index + 1} product id`),
@@ -686,24 +820,26 @@ app.get('/api/health', async (_req, res) => {
 })
 
 app.get('/api/public/bootstrap', async (_req, res) => {
-  const [collections, products, reviews, shippingRates] = await Promise.all([
+  const [collections, products, reviews, deliveryCommunes, shippingRates] = await Promise.all([
     listCollections(),
     listProducts(),
     listReviews(),
+    listDeliveryCommunes({ activeOnly: true }),
     listShippingRates()
   ])
 
   res.setHeader('Cache-Control', 'public, max-age=30, s-maxage=60, stale-while-revalidate=300')
-  res.json({ collections, products, reviews, shippingRates })
+  res.json({ collections, products, reviews, deliveryCommunes, shippingRates })
 })
 
 app.get('/api/admin/bootstrap', requireAdminApiAuth, async (_req, res) => {
-  const [collections, products, orders, reviews, messages, shippingRates, deletedCollections, deletedProducts, deletedReviews] = await Promise.all([
+  const [collections, products, orders, reviews, messages, deliveryCommunes, shippingRates, deletedCollections, deletedProducts, deletedReviews] = await Promise.all([
     listCollections(),
     listProducts(),
     listOrders(),
     listReviews(),
     listMessages(),
+    listDeliveryCommunes(),
     listShippingRates(),
     listCollections({ onlyDeleted: true }),
     listProducts({ onlyDeleted: true }),
@@ -716,6 +852,7 @@ app.get('/api/admin/bootstrap', requireAdminApiAuth, async (_req, res) => {
     orders,
     reviews,
     messages,
+    deliveryCommunes,
     shippingRates,
     trash: {
       collections: deletedCollections,
@@ -835,12 +972,12 @@ app.put('/api/settings/shipping', requireAdminApiAuth, async (req, res) => {
     for (const [commune, amount] of entries) {
       await client.query(
         `
-          insert into shipping_rates (commune, amount)
-          values ($1, $2)
-          on conflict (commune)
-          do update set amount = excluded.amount, updated_at = now()
+          insert into delivery_communes (id, name, delivery_price, is_active)
+          values ($1, $2, $3, true)
+          on conflict (name)
+          do update set delivery_price = excluded.delivery_price, updated_at = now()
         `,
-        [commune, amount]
+        [createIdentifier('COM'), commune, amount]
       )
     }
     await client.query('commit')
@@ -852,6 +989,68 @@ app.put('/api/settings/shipping', requireAdminApiAuth, async (req, res) => {
   }
 
   return res.json(await listShippingRates())
+})
+
+app.post('/api/delivery-communes', requireAdminApiAuth, async (req, res) => {
+  const commune = normalizeCommuneBody(req.body)
+  const { rows } = await pool.query(
+    `
+      insert into delivery_communes (id, name, delivery_price, is_active)
+      values ($1, $2, $3, $4)
+      returning *
+    `,
+    [commune.id, commune.nom, commune.prixLivraison, commune.estActive]
+  )
+  res.status(201).json(mapDeliveryCommune(rows[0]))
+})
+
+app.put('/api/delivery-communes/:id', requireAdminApiAuth, async (req, res) => {
+  const commune = normalizeCommuneBody({ ...req.body, id: req.params.id })
+  const { rows } = await pool.query(
+    `
+      update delivery_communes
+      set name = $2, delivery_price = $3, is_active = $4, updated_at = now()
+      where id = $1
+      returning *
+    `,
+    [commune.id, commune.nom, commune.prixLivraison, commune.estActive]
+  )
+  if (!rows.length) {
+    return res.status(404).json({ error: 'Delivery commune not found.' })
+  }
+  res.json(mapDeliveryCommune(rows[0]))
+})
+
+app.patch('/api/delivery-communes/:id/status', requireAdminApiAuth, async (req, res) => {
+  const estActive = Boolean(req.body.estActive)
+  const { rows } = await pool.query(
+    `
+      update delivery_communes
+      set is_active = $2, updated_at = now()
+      where id = $1
+      returning *
+    `,
+    [req.params.id, estActive]
+  )
+  if (!rows.length) {
+    return res.status(404).json({ error: 'Delivery commune not found.' })
+  }
+  res.json(mapDeliveryCommune(rows[0]))
+})
+
+app.delete('/api/delivery-communes/:id', requireAdminApiAuth, async (req, res) => {
+  const { rowCount } = await pool.query('delete from delivery_communes where id = $1', [req.params.id])
+  if (!rowCount) {
+    return res.status(404).json({ error: 'Delivery commune not found.' })
+  }
+  res.status(204).end()
+})
+
+app.post('/api/cart/validate', async (req, res) => {
+  const commune = typeof req.body?.commune === 'string' ? req.body.commune : ''
+  const items = Array.isArray(req.body?.items) ? req.body.items : []
+  const validation = await validateCartPayload(items, commune, { client: pool, lockProducts: false, strict: false })
+  res.json(validation)
 })
 
 app.post('/api/collections', requireAdminApiAuth, async (req, res) => {
@@ -1028,7 +1227,11 @@ app.post('/api/orders', publicWriteRateLimiter, async (req, res) => {
 
   try {
     await client.query('begin')
-    const pricing = await buildOrderPricing(order.items, String(order.commune ?? '').trim(), client)
+    const pricing = await validateCartPayload(order.items, String(order.commune ?? '').trim(), {
+      client,
+      lockProducts: true,
+      strict: true
+    })
     await client.query(
       `
         insert into orders (
@@ -1039,10 +1242,10 @@ app.post('/api/orders', publicWriteRateLimiter, async (req, res) => {
         order.id,
         order.customerName,
         order.phone,
-        order.commune,
+        pricing.communeSelectionnee,
         order.notes ?? '',
-        pricing.subtotal,
-        pricing.shipping,
+        pricing.sousTotal,
+        pricing.fraisLivraison,
         pricing.total,
         order.status,
         order.createdAt
@@ -1059,7 +1262,7 @@ app.post('/api/orders', publicWriteRateLimiter, async (req, res) => {
         [order.id, item.productId, item.name, item.price, item.color, item.size, item.quantity, item.image]
       )
 
-      if (item.productId) {
+      if (item.productId && item.estDisponible) {
         await client.query('update products set stock = greatest(stock - $2, 0), updated_at = now() where id = $1', [
           item.productId,
           item.quantity
@@ -1204,6 +1407,17 @@ export async function ensureRuntimeSchema() {
       `)
 
       await pool.query(`
+        create table if not exists delivery_communes (
+          id text primary key,
+          name text not null unique,
+          delivery_price numeric(12, 2) not null check (delivery_price >= 0),
+          is_active boolean not null default true,
+          created_at timestamptz not null default now(),
+          updated_at timestamptz not null default now()
+        )
+      `)
+
+      await pool.query(`
         create table if not exists shipping_rates (
           commune text primary key,
           amount numeric(12, 2) not null check (amount >= 0),
@@ -1217,6 +1431,17 @@ export async function ensureRuntimeSchema() {
         add column if not exists deleted_at timestamptz
       `)
 
+      await pool.query(`
+        insert into delivery_communes (id, name, delivery_price, is_active)
+        select
+          'COM-' || row_number() over (order by commune),
+          commune,
+          amount,
+          true
+        from shipping_rates
+        on conflict (name) do nothing
+      `)
+
       for (const [commune, amount] of Object.entries(defaultShippingRates)) {
         await pool.query(
           `
@@ -1225,6 +1450,17 @@ export async function ensureRuntimeSchema() {
             on conflict (commune) do nothing
           `,
           [commune, amount]
+        )
+      }
+
+      for (const commune of defaultDeliveryCommunes) {
+        await pool.query(
+          `
+            insert into delivery_communes (id, name, delivery_price, is_active)
+            values ($1, $2, $3, $4)
+            on conflict (id) do nothing
+          `,
+          [commune.id, commune.nom, commune.prixLivraison, commune.estActive]
         )
       }
 
