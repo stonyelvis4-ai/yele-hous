@@ -155,34 +155,6 @@ CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_delivery_communes_is_active ON delivery_communes(is_active);
 CREATE INDEX IF NOT EXISTS idx_delivery_communes_name ON delivery_communes(name);
 
-INSERT INTO collections (id, name, slug, description, image, is_featured)
-VALUES
-  (
-    'col-abidjan-soiree',
-    'Abidjan Soiree',
-    'abidjan-soiree',
-    'Silhouettes de nuit, satin couture et eclat editorial pour les grands rendez-vous.',
-    'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=1200&q=80',
-    TRUE
-  ),
-  (
-    'col-essentiels-maison',
-    'Essentiels Maison',
-    'essentiels-maison',
-    'Pieces signatures a porter, offrir et recomposer au fil des saisons.',
-    'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=1200&q=80',
-    FALSE
-  ),
-  (
-    'col-parfums-ivoire',
-    'Parfums d Ivoire',
-    'parfums-d-ivoire',
-    'Une selection de sillages solaires, bois precieux et nectar haute presence.',
-    'https://images.unsplash.com/photo-1523293182086-7651a899d37f?auto=format&fit=crop&w=1200&q=80',
-    TRUE
-  )
-ON CONFLICT (id) DO NOTHING;
-
 INSERT INTO delivery_communes (id, name, delivery_price, is_active)
 VALUES
   ('COM-1', 'Cocody', 5000, TRUE),

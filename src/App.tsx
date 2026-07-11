@@ -207,7 +207,7 @@ const emptyToast = { title: '', message: '' }
 const emptyPasswordForm = { currentPassword: '', nextPassword: '', confirmPassword: '' }
 const emptyGalleryImageInput = ''
 const emptyDeliveryCommuneForm = { id: '', nom: '', prixLivraison: 0, estActive: true }
-const PUBLIC_BOOTSTRAP_CACHE_KEY = 'yele-public-bootstrap-cache-v4'
+const PUBLIC_BOOTSTRAP_CACHE_KEY = 'yele-public-bootstrap-cache-v5'
 const defaultShippingRates: ShippingRates = {
   Cocody: 5000,
   Plateau: 4500,
@@ -685,7 +685,7 @@ export default function App() {
           setShippingRates(buildShippingRatesFromCommunes(fallbackData.initialDeliveryCommunes))
         }
         if (isAdminPath) {
-          showToast('Mode local actif', 'La base ou la session admin n est pas joignable. L interface garde les donnees de demo.')
+          showToast('Mode local actif', 'La base ou la session admin n est pas joignable. Aucun contenu de demonstration n est injecte dans la vitrine.')
         }
       }
     }

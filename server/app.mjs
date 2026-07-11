@@ -91,6 +91,8 @@ const defaultCollections = [
     isFeatured: true
   }
 ]
+const demoCollectionIds = new Set(defaultCollections.map((collection) => collection.id))
+const demoProductIds = new Set(['robe-lagune', 'sac-ebene', 'parfum-soleil', 'manchette-bahia'])
 const defaultDeliveryCommunes = Object.entries(defaultShippingRates).map(([nom, prixLivraison], index) => ({
   id: `COM-${index + 1}`,
   nom,
@@ -105,21 +107,35 @@ function defaultProductName(category) {
   return 'Nouvel accessoire signature'
 }
 
+function createMediaPlaceholder(label, accent) {
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1200">
+      <rect width="1200" height="1200" fill="#f8eff5"/>
+      <rect x="96" y="96" width="1008" height="1008" rx="84" fill="#fff9fc" stroke="#ead5e4" stroke-width="8"/>
+      <circle cx="600" cy="430" r="110" fill="${accent}" opacity="0.14"/>
+      <text x="600" y="590" text-anchor="middle" fill="#3b2f45" font-family="Georgia, serif" font-size="88">YELE House&apos;s</text>
+      <text x="600" y="675" text-anchor="middle" fill="#a16f91" font-family="Arial, sans-serif" font-size="38" letter-spacing="10">${label}</text>
+    </svg>
+  `.trim()
+
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
+}
+
 function isBagCategory(category) {
   return String(category ?? '').trim().toLowerCase() === 'sacs'
 }
 
 function productFallbackByCategory(category) {
   if (category === 'Sacs') {
-    return 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=1200&q=80'
+    return createMediaPlaceholder('SACS', '#b655e9')
   }
   if (category === 'Parfums') {
-    return 'https://images.unsplash.com/photo-1594035910387-fea47794261f?auto=format&fit=crop&w=1200&q=80'
+    return createMediaPlaceholder('PARFUMS', '#d86c9e')
   }
   if (category === 'Accessoires') {
-    return 'https://images.unsplash.com/photo-1617038220319-276d3cfab638?auto=format&fit=crop&w=1200&q=80'
+    return createMediaPlaceholder('ACCESSOIRES', '#8a6cf0')
   }
-  return 'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=1200&q=80'
+  return createMediaPlaceholder('VETEMENTS', '#f04cb3')
 }
 
 function defaultCollectionName() {
@@ -131,7 +147,7 @@ function defaultCollectionDescription() {
 }
 
 function collectionFallbackImage() {
-  return 'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=1200&q=80'
+  return createMediaPlaceholder('COLLECTION', '#f04cb3')
 }
 
 function shouldDeferPublicMedia(value) {
@@ -794,7 +810,7 @@ function normalizeCollectionBody(body) {
       required: true,
       maxLength: MAX_DESCRIPTION_LENGTH
     }),
-    image: normalizeMediaField(body.image, { field: 'Collection image', allowEmpty: true }) || defaultCollections[0].image,
+    image: normalizeMediaField(body.image, { field: 'Collection image', allowEmpty: true }) || collectionFallbackImage(),
     video: normalizeMediaField(body.video, { field: 'Collection video', allowEmpty: true, video: true }) || null,
     isFeatured: Boolean(body.isFeatured)
   }
@@ -1555,14 +1571,25 @@ export async function ensureRuntimeSchema() {
         )
       }
 
-      for (const collection of defaultCollections) {
+      if (demoProductIds.size) {
         await pool.query(
           `
-            insert into collections (id, name, slug, description, image, video, is_featured)
-            values ($1, $2, $3, $4, $5, $6, $7)
-            on conflict (id) do nothing
+            update products
+            set deleted_at = coalesce(deleted_at, now())
+            where id = any($1::text[])
           `,
-          [collection.id, collection.name, collection.slug, collection.description, collection.image, collection.video, collection.isFeatured]
+          [[...demoProductIds]]
+        )
+      }
+
+      if (demoCollectionIds.size) {
+        await pool.query(
+          `
+            update collections
+            set deleted_at = coalesce(deleted_at, now())
+            where id = any($1::text[])
+          `,
+          [[...demoCollectionIds]]
         )
       }
     })()
