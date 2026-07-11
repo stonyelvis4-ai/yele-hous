@@ -52,6 +52,7 @@ import {
   deleteProduct as deleteProductRequest,
   deleteReview as deleteReviewRequest,
   fetchAdminBootstrap,
+  fetchPublicProduct,
   fetchPublicBootstrap,
   restoreCollection as restoreCollectionRequest,
   restoreProduct as restoreProductRequest,
@@ -205,7 +206,7 @@ const emptyToast = { title: '', message: '' }
 const emptyPasswordForm = { currentPassword: '', nextPassword: '', confirmPassword: '' }
 const emptyGalleryImageInput = ''
 const emptyDeliveryCommuneForm = { id: '', nom: '', prixLivraison: 0, estActive: true }
-const PUBLIC_BOOTSTRAP_CACHE_KEY = 'yele-public-bootstrap-cache-v3'
+const PUBLIC_BOOTSTRAP_CACHE_KEY = 'yele-public-bootstrap-cache-v4'
 const defaultShippingRates: ShippingRates = {
   Cocody: 5000,
   Plateau: 4500,
@@ -553,6 +554,8 @@ export default function App() {
   })
   const [toast, setToast] = useState(emptyToast)
   const [previewProductId, setPreviewProductId] = useState<string | null>(null)
+  const [previewProductLoading, setPreviewProductLoading] = useState(false)
+  const [previewProductError, setPreviewProductError] = useState('')
   const [adminCustomColor, setAdminCustomColor] = useState('')
   const [adminGalleryImageInput, setAdminGalleryImageInput] = useState(emptyGalleryImageInput)
   const [adminColorsOpen, setAdminColorsOpen] = useState(false)
@@ -1000,8 +1003,23 @@ export default function App() {
     setToast({ title, message })
   }
 
-  const openPreviewProduct = (productId: string) => {
+  const openPreviewProduct = async (productId: string) => {
     setPreviewProductId(productId)
+    setPreviewProductError('')
+
+    if (!isDatabaseReady) return
+
+    setPreviewProductLoading(true)
+
+    try {
+      const detailedProduct = await fetchPublicProduct(productId)
+      setProducts((current) => current.map((product) => (product.id === productId ? detailedProduct : product)))
+    } catch (error) {
+      console.error(error)
+      setPreviewProductError('Impossible de charger les medias du produit pour le moment.')
+    } finally {
+      setPreviewProductLoading(false)
+    }
   }
 
   const syncCartWithServer = async (nextItems: CartItem[], nextCommune?: string) => {
@@ -2501,7 +2519,7 @@ export default function App() {
                           [product.id]: { ...selection, size }
                         }))
                       }
-                      onPreview={() => setPreviewProductId(product.id)}
+                      onPreview={() => void openPreviewProduct(product.id)}
                       onAdd={() => addToCart(product)}
                     />
                   </RevealSection>
@@ -2793,6 +2811,13 @@ export default function App() {
 
               <p className="mt-5 text-[15px] leading-7 text-[#6f657a]">{previewProduct.description}</p>
 
+              {previewProductLoading ? (
+                <p className="mt-3 text-sm text-[#8a7f95]">Chargement des medias du produit...</p>
+              ) : null}
+              {previewProductError ? (
+                <p className="mt-3 text-sm text-[#d63e74]">{previewProductError}</p>
+              ) : null}
+
               {previewProduct.images.length > 1 ? (
                 <div className="mt-5 flex flex-wrap gap-3">
                   {previewProduct.images.map((image, index) => (
@@ -2915,7 +2940,7 @@ export default function App() {
                       <motion.button
                         key={product.id}
                         type="button"
-                        onClick={() => openPreviewProduct(product.id)}
+                        onClick={() => void openPreviewProduct(product.id)}
                         className="look-complete-card"
                         whileHover={{ y: -4, scale: 1.01 }}
                         whileTap={{ scale: 0.98 }}

@@ -305,6 +305,14 @@ function mapProduct(row) {
   }
 }
 
+function stripPublicProductMedia(product) {
+  return {
+    ...product,
+    images: product.image ? [product.image] : [],
+    video: undefined
+  }
+}
+
 function mapCollection(row) {
   return {
     id: row.id,
@@ -315,6 +323,13 @@ function mapCollection(row) {
     video: row.video ?? undefined,
     isFeatured: row.is_featured,
     deletedAt: row.deleted_at ?? undefined
+  }
+}
+
+function stripPublicCollectionMedia(collection) {
+  return {
+    ...collection,
+    video: undefined
   }
 }
 
@@ -820,16 +835,44 @@ app.get('/api/health', async (_req, res) => {
 })
 
 app.get('/api/public/bootstrap', async (_req, res) => {
-  const [collections, products, reviews, deliveryCommunes, shippingRates] = await Promise.all([
+  const [collectionRows, productRows, reviews, deliveryCommunes, shippingRates] = await Promise.all([
     listCollections(),
     listProducts(),
     listReviews(),
     listDeliveryCommunes({ activeOnly: true }),
     listShippingRates()
   ])
+  const collections = collectionRows.map(stripPublicCollectionMedia)
+  const products = productRows.map(stripPublicProductMedia)
 
   res.setHeader('Cache-Control', 'public, max-age=30, s-maxage=60, stale-while-revalidate=300')
   res.json({ collections, products, reviews, deliveryCommunes, shippingRates })
+})
+
+app.get('/api/public/products/:id', async (req, res) => {
+  const id = String(req.params.id ?? '').trim()
+  if (!id) {
+    return res.status(400).json({ error: 'Product id is required.' })
+  }
+
+  const { rows } = await pool.query(
+    `
+      select
+        id, name, category, collection_id, price, compare_at_price, description, material, colors, sizes,
+        stock, is_best_seller, image, images, video, deleted_at
+      from products
+      where id = $1 and deleted_at is null
+      limit 1
+    `,
+    [id]
+  )
+
+  if (!rows.length) {
+    return res.status(404).json({ error: 'Product not found.' })
+  }
+
+  res.setHeader('Cache-Control', 'public, max-age=30, s-maxage=60, stale-while-revalidate=300')
+  res.json(mapProduct(rows[0]))
 })
 
 app.get('/api/admin/bootstrap', requireAdminApiAuth, async (_req, res) => {

@@ -52,6 +52,10 @@ export function fetchPublicBootstrap() {
   }>('/public/bootstrap')
 }
 
+export function fetchPublicProduct(id: string) {
+  return request<Product>(`/public/products/${id}`)
+}
+
 export function fetchAdminBootstrap() {
   return request<{
     collections: Collection[]
