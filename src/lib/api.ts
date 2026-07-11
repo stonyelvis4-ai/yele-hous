@@ -70,6 +70,7 @@ export function fetchAdminBootstrap() {
     deliveryCommunes: DeliveryCommune[]
     shippingRates: ShippingRates
     trash: {
+      orders: Order[]
       collections: Collection[]
       products: Product[]
       reviews: Review[]
@@ -176,6 +177,18 @@ export function createOrder(order: Order) {
 
 export function updateOrderStatus(id: string, status: OrderStatus) {
   return request<Order>(`/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) })
+}
+
+export function deleteOrder(id: string) {
+  return request<Order>(`/orders/${id}`, { method: 'DELETE' })
+}
+
+export function restoreOrder(id: string) {
+  return request<Order>(`/orders/${id}/restore`, { method: 'POST' })
+}
+
+export function permanentlyDeleteOrder(id: string) {
+  return request<void>(`/orders/${id}/permanent`, { method: 'DELETE' })
 }
 
 export function createReview(review: Review) {

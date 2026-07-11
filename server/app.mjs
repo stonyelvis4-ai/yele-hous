@@ -711,7 +711,8 @@ async function validateCartPayload(items, commune, { client = pool, lockProducts
   }
 }
 
-async function listOrders() {
+async function listOrders(options = {}) {
+  const { onlyDeleted = false } = options
   const { rows } = await pool.query(`
     select
       o.*,
@@ -732,6 +733,7 @@ async function listOrders() {
       ) as items
     from orders o
     left join order_items oi on oi.order_id = o.id
+    where ${onlyDeleted ? 'o.deleted_at is not null' : 'o.deleted_at is null'}
     group by o.id
     order by o.created_at desc, o.id desc
   `)
@@ -755,7 +757,8 @@ async function listOrders() {
     shipping: Number(row.shipping),
     total: Number(row.total),
     status: row.status,
-    createdAt: row.created_at
+    createdAt: row.created_at,
+    deletedAt: row.deleted_at ?? undefined
   }))
 }
 
@@ -940,7 +943,7 @@ app.get('/api/public/collections/:id', async (req, res) => {
 })
 
 app.get('/api/admin/bootstrap', requireAdminApiAuth, async (_req, res) => {
-  const [collections, products, orders, reviews, messages, deliveryCommunes, shippingRates, deletedCollections, deletedProducts, deletedReviews] = await Promise.all([
+  const [collections, products, orders, reviews, messages, deliveryCommunes, shippingRates, deletedOrders, deletedCollections, deletedProducts, deletedReviews] = await Promise.all([
     listCollections(),
     listProducts(),
     listOrders(),
@@ -948,6 +951,7 @@ app.get('/api/admin/bootstrap', requireAdminApiAuth, async (_req, res) => {
     listMessages(),
     listDeliveryCommunes(),
     listShippingRates(),
+    listOrders({ onlyDeleted: true }),
     listCollections({ onlyDeleted: true }),
     listProducts({ onlyDeleted: true }),
     listReviews({ onlyDeleted: true })
@@ -962,6 +966,7 @@ app.get('/api/admin/bootstrap', requireAdminApiAuth, async (_req, res) => {
     deliveryCommunes,
     shippingRates,
     trash: {
+      orders: deletedOrders,
       collections: deletedCollections,
       products: deletedProducts,
       reviews: deletedReviews
@@ -1395,6 +1400,70 @@ app.patch('/api/orders/:id/status', requireAdminApiAuth, async (req, res) => {
   ])
   const orders = await listOrders()
   res.json(orders.find((entry) => entry.id === req.params.id))
+})
+
+app.delete('/api/orders/:id', requireAdminApiAuth, async (req, res) => {
+  const { rows } = await pool.query(
+    `
+      update orders
+      set deleted_at = now(),
+          updated_at = now()
+      where id = $1 and deleted_at is null
+      returning *
+    `,
+    [req.params.id]
+  )
+
+  if (!rows.length) {
+    return res.status(404).json({ error: 'Order not found.' })
+  }
+
+  const deletedOrders = await listOrders({ onlyDeleted: true })
+  res.json(deletedOrders.find((entry) => entry.id === req.params.id))
+})
+
+app.post('/api/orders/:id/restore', requireAdminApiAuth, async (req, res) => {
+  const { rows } = await pool.query(
+    `
+      update orders
+      set deleted_at = null,
+          updated_at = now()
+      where id = $1 and deleted_at is not null
+      returning *
+    `,
+    [req.params.id]
+  )
+
+  if (!rows.length) {
+    return res.status(404).json({ error: 'Order not found.' })
+  }
+
+  const orders = await listOrders()
+  res.json(orders.find((entry) => entry.id === req.params.id))
+})
+
+app.delete('/api/orders/:id/permanent', requireAdminApiAuth, async (req, res) => {
+  const client = await pool.connect()
+
+  try {
+    await client.query('begin')
+    const orderResult = await client.query('select id from orders where id = $1 and deleted_at is not null limit 1', [req.params.id])
+
+    if (!orderResult.rows.length) {
+      await client.query('rollback')
+      return res.status(404).json({ error: 'Order not found.' })
+    }
+
+    await client.query('delete from order_items where order_id = $1', [req.params.id])
+    await client.query('delete from orders where id = $1 and deleted_at is not null', [req.params.id])
+    await client.query('commit')
+    return res.status(204).end()
+  } catch (error) {
+    await client.query('rollback')
+    throw error
+  } finally {
+    client.release()
+  }
 })
 
 app.post('/api/reviews', publicWriteRateLimiter, async (req, res) => {

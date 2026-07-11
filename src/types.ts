@@ -83,6 +83,7 @@ export interface Order {
   total: number
   status: OrderStatus
   createdAt: string
+  deletedAt?: string
 }
 
 export interface Review {

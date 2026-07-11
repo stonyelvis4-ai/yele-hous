@@ -9,6 +9,7 @@ interface AdminOrdersSectionProps {
   orderStatusFilter: OrderStatus | 'Tous'
   setOrderStatusFilter: (value: OrderStatus | 'Tous') => void
   updateOrderStatus: (order: Order, status: OrderStatus) => void
+  deleteOrder: (order: Order) => void
 }
 
 export function AdminOrdersSection({
@@ -17,7 +18,8 @@ export function AdminOrdersSection({
   visibleOrders,
   orderStatusFilter,
   setOrderStatusFilter,
-  updateOrderStatus
+  updateOrderStatus,
+  deleteOrder
 }: AdminOrdersSectionProps) {
   const pendingOrdersCount = orders.filter((order) => order.status === 'En attente').length
   const deliveredOrdersCount = orders.filter((order) => order.status === 'Livree').length
@@ -94,6 +96,10 @@ export function AdminOrdersSection({
                 >
                   WhatsApp
                 </a>
+                <button type="button" onClick={() => deleteOrder(order)} className="secondary-button inline-flex items-center gap-2">
+                  <Trash2 size={14} />
+                  Corbeille
+                </button>
               </div>
             </div>
           </div>

@@ -63,6 +63,7 @@ export interface Database {
           status: string
           created_at: string
           updated_at: string
+          deleted_at: string | null
         }
       }
       order_items: {

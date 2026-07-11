@@ -2,13 +2,16 @@ import { Trash2 } from 'lucide-react'
 import { SmartMedia } from '../SmartMedia'
 import { collectionFallbackImage, productFallbackImage } from '../../lib/imageFallbacks'
 import { currency, datetime } from '../../utils/format'
-import { Collection, Product, Review } from '../../types'
+import { Collection, Order, Product, Review } from '../../types'
 
 interface AdminTrashSectionProps {
   trashItemsCount: number
+  deletedOrders: Order[]
   deletedProducts: Product[]
   deletedCollections: Collection[]
   deletedReviews: Review[]
+  restoreDeletedOrder: (order: Order) => void
+  permanentlyDeleteOrder: (order: Order) => void
   restoreDeletedProduct: (product: Product) => void
   restoreDeletedCollection: (collection: Collection) => void
   restoreDeletedReview: (review: Review) => void
@@ -16,9 +19,12 @@ interface AdminTrashSectionProps {
 
 export function AdminTrashSection({
   trashItemsCount,
+  deletedOrders,
   deletedProducts,
   deletedCollections,
   deletedReviews,
+  restoreDeletedOrder,
+  permanentlyDeleteOrder,
   restoreDeletedProduct,
   restoreDeletedCollection,
   restoreDeletedReview
@@ -41,6 +47,49 @@ export function AdminTrashSection({
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a7f95]">Total</p>
             <p className="mt-2 text-2xl font-semibold text-[#241f2b]">{trashItemsCount}</p>
           </div>
+        </div>
+      </div>
+
+      <div className="panel-card p-7">
+        <div className="mb-5 flex items-center justify-between gap-4">
+          <h3 className="text-[20px] font-semibold text-[#241f2b]">Commandes</h3>
+          <span className="rounded-full bg-[#ef4cae]/10 px-3 py-1 text-xs font-semibold text-[#f04cb3]">
+            {deletedOrders.length}
+          </span>
+        </div>
+        <div className="space-y-3">
+          {deletedOrders.length ? (
+            deletedOrders.map((order) => (
+              <div key={order.id} className="rounded-[22px] border border-[#dfd3e4] bg-[#fffdfd] p-5">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <h4 className="font-semibold text-[#241f2b]">
+                      {order.id} - {order.customerName}
+                    </h4>
+                    <p className="mt-1 text-sm text-[#8a7f95]">
+                      {order.commune} • {currency.format(order.total)}
+                    </p>
+                    <p className="mt-1 text-sm text-[#8a7f95]">{order.phone}</p>
+                    {order.deletedAt ? (
+                      <p className="mt-3 text-xs text-[#9a8ea5]">Supprime le {datetime.format(new Date(order.deletedAt))}</p>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={() => restoreDeletedOrder(order)} className="primary-button px-5">
+                      Restaurer
+                    </button>
+                    <button type="button" onClick={() => permanentlyDeleteOrder(order)} className="secondary-button px-5">
+                      Supprimer definitivement
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (
+            <p className="rounded-[20px] border border-dashed border-[#dfd3e4] bg-[#fffdfd] px-5 py-6 text-sm text-[#7a6f86]">
+              Aucune commande dans la corbeille.
+            </p>
+          )}
         </div>
       </div>
 

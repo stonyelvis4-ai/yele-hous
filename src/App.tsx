@@ -48,12 +48,15 @@ import {
   createReview as createReviewRequest,
   deleteCollection as deleteCollectionRequest,
   deleteDeliveryCommune as deleteDeliveryCommuneRequest,
+  deleteOrder as deleteOrderRequest,
   deleteProduct as deleteProductRequest,
   deleteReview as deleteReviewRequest,
   fetchAdminBootstrap,
   fetchPublicCollection,
   fetchPublicProduct,
   fetchPublicBootstrap,
+  permanentlyDeleteOrder as permanentlyDeleteOrderRequest,
+  restoreOrder as restoreOrderRequest,
   restoreCollection as restoreCollectionRequest,
   restoreProduct as restoreProductRequest,
   restoreReview as restoreReviewRequest,
@@ -509,6 +512,7 @@ export default function App() {
   const [orders, setOrders] = useState<Order[]>([])
   const [reviews, setReviews] = useState<Review[]>(cachedPublicBootstrap?.reviews ?? [])
   const [deletedCollections, setDeletedCollections] = useState<Collection[]>([])
+  const [deletedOrders, setDeletedOrders] = useState<Order[]>([])
   const [deletedProducts, setDeletedProducts] = useState<Product[]>([])
   const [deletedReviews, setDeletedReviews] = useState<Review[]>([])
   const [messages, setMessages] = useState<ContactMessage[]>([])
@@ -623,6 +627,7 @@ export default function App() {
           setOrders(bootstrap.orders)
           setReviews(bootstrap.reviews)
           setDeletedCollections(bootstrap.trash.collections)
+          setDeletedOrders(bootstrap.trash.orders)
           setDeletedProducts(bootstrap.trash.products)
           setDeletedReviews(bootstrap.trash.reviews)
           setMessages(bootstrap.messages)
@@ -872,8 +877,8 @@ export default function App() {
   )
 
   const trashItemsCount = useMemo(
-    () => deletedCollections.length + deletedProducts.length + deletedReviews.length,
-    [deletedCollections.length, deletedProducts.length, deletedReviews.length]
+    () => deletedCollections.length + deletedOrders.length + deletedProducts.length + deletedReviews.length,
+    [deletedCollections.length, deletedOrders.length, deletedProducts.length, deletedReviews.length]
   )
 
   const stockValue = useMemo(
@@ -1742,9 +1747,24 @@ export default function App() {
       try {
         const updatedOrder = isDatabaseReady ? await updateOrderStatusRequest(order.id, status) : { ...order, status }
         setOrders((current) => current.map((item) => (item.id === order.id ? updatedOrder : item)))
+        showToast('Commande mise a jour', `La commande ${order.id} est maintenant en statut ${status}.`)
       } catch (error) {
         console.error(error)
         showToast('Mise a jour impossible', 'Le statut de la commande n a pas pu etre modifie.')
+      }
+    })()
+  }
+
+  const deleteAdminOrder = (order: Order) => {
+    void (async () => {
+      try {
+        const deletedOrder = isDatabaseReady ? await deleteOrderRequest(order.id) : { ...order, deletedAt: new Date().toISOString() }
+        setOrders((current) => current.filter((item) => item.id !== order.id))
+        setDeletedOrders((current) => [deletedOrder, ...current])
+        showToast('Commande deplacee', `La commande ${order.id} a ete envoyee dans la corbeille.`)
+      } catch (error) {
+        console.error(error)
+        showToast('Suppression impossible', 'La commande n a pas pu etre deplacee dans la corbeille.')
       }
     })()
   }
@@ -1947,6 +1967,39 @@ export default function App() {
       } catch (error) {
         console.error(error)
         setDeliveryCommuneMessage('Impossible d enregistrer cette commune pour le moment.')
+      }
+    })()
+  }
+
+  const restoreDeletedOrder = (order: Order) => {
+    void (async () => {
+      try {
+        const restored = isDatabaseReady ? await restoreOrderRequest(order.id) : { ...order, deletedAt: undefined }
+        setDeletedOrders((current) => current.filter((item) => item.id !== order.id))
+        setOrders((current) => [restored, ...current])
+        showToast('Commande restauree', `La commande ${order.id} est revenue dans la liste active.`)
+      } catch (error) {
+        console.error(error)
+        showToast('Restauration impossible', 'La commande n a pas pu etre restauree.')
+      }
+    })()
+  }
+
+  const permanentlyDeleteAdminOrder = (order: Order) => {
+    if (!window.confirm(`Supprimer definitivement la commande ${order.id} ? Cette action est irreversible.`)) {
+      return
+    }
+
+    void (async () => {
+      try {
+        if (isDatabaseReady) {
+          await permanentlyDeleteOrderRequest(order.id)
+        }
+        setDeletedOrders((current) => current.filter((item) => item.id !== order.id))
+        showToast('Suppression definitive', `La commande ${order.id} a ete retiree definitivement.`)
+      } catch (error) {
+        console.error(error)
+        showToast('Suppression impossible', 'La commande n a pas pu etre supprimee definitivement.')
       }
     })()
   }
@@ -2216,6 +2269,7 @@ export default function App() {
                     orderStatusFilter={orderStatusFilter}
                     setOrderStatusFilter={setOrderStatusFilter}
                     updateOrderStatus={updateAdminOrderStatus}
+                    deleteOrder={deleteAdminOrder}
                   />
                 ) : null}
 
@@ -2297,9 +2351,12 @@ export default function App() {
                 {adminPath === '/admin/trash' ? (
                   <AdminTrashSection
                     trashItemsCount={trashItemsCount}
+                    deletedOrders={deletedOrders}
                     deletedProducts={deletedProducts}
                     deletedCollections={deletedCollections}
                     deletedReviews={deletedReviews}
+                    restoreDeletedOrder={restoreDeletedOrder}
+                    permanentlyDeleteOrder={permanentlyDeleteAdminOrder}
                     restoreDeletedProduct={restoreDeletedProduct}
                     restoreDeletedCollection={restoreDeletedCollection}
                     restoreDeletedReview={restoreDeletedReview}
