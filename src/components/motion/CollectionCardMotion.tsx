@@ -1,7 +1,7 @@
 import type { Transition, Variants } from 'motion/react'
 import { motion, useInView } from 'motion/react'
 import { ArrowRight } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { premiumEase } from '../../lib/motion'
 import { collectionFallbackImage } from '../../lib/imageFallbacks'
 
@@ -69,6 +69,10 @@ export function CollectionCardMotion({ title, copy, image, video }: CollectionCa
   const mediaRef = useRef<HTMLDivElement | null>(null)
   const isMediaVisible = useInView(mediaRef, { once: false, amount: 0.35 })
   const [imageSrc, setImageSrc] = useState(image || collectionFallbackImage)
+
+  useEffect(() => {
+    setImageSrc(image || collectionFallbackImage)
+  }, [image])
 
   return (
     <motion.article

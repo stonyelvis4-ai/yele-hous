@@ -1,5 +1,5 @@
 import { motion, useInView } from 'motion/react'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AnimatedBadge } from './AnimatedBadge'
 import { productCardGlowVariants, productCardImageVariants, productCardVariants, subtleHoverTransition } from '../../lib/motion'
 import { productFallbackImage } from '../../lib/imageFallbacks'
@@ -50,6 +50,10 @@ export function ProductCardMotion({
   const mediaRef = useRef<HTMLButtonElement | null>(null)
   const isMediaVisible = useInView(mediaRef, { once: false, amount: 0.25 })
   const [imageSrc, setImageSrc] = useState(image || productFallbackImage(category))
+
+  useEffect(() => {
+    setImageSrc(image || productFallbackImage(category))
+  }, [image, category])
 
   return (
     <motion.article

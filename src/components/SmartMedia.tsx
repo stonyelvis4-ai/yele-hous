@@ -1,5 +1,5 @@
 import { useInView } from 'motion/react'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 interface SmartMediaProps {
   image: string
@@ -32,6 +32,10 @@ export function SmartMedia({
   const isInView = useInView(mediaRef, { once: false, amount: 0.2 })
   const shouldLoadVideo = Boolean(video) && (priority || isInView)
   const [imageSrc, setImageSrc] = useState(image || fallbackImage)
+
+  useEffect(() => {
+    setImageSrc(image || fallbackImage)
+  }, [image, fallbackImage])
 
   return (
     <div ref={mediaRef} className={containerClassName}>
