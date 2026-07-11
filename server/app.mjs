@@ -1224,6 +1224,21 @@ app.post('/api/collections/:id/restore', requireAdminApiAuth, async (req, res) =
   res.json(mapCollection(rows[0]))
 })
 
+app.delete('/api/collections/:id/permanent', requireAdminApiAuth, async (req, res) => {
+  const { rows } = await pool.query(
+    `
+      delete from collections
+      where id = $1 and deleted_at is not null
+      returning *
+    `,
+    [req.params.id]
+  )
+  if (!rows.length) {
+    return res.status(404).json({ error: 'Collection not found.' })
+  }
+  return res.status(204).end()
+})
+
 app.post('/api/products', requireAdminApiAuth, async (req, res) => {
   const product = normalizeProductBody(req.body)
   await pool.query(
@@ -1331,6 +1346,21 @@ app.post('/api/products/:id/restore', requireAdminApiAuth, async (req, res) => {
     return res.status(404).json({ error: 'Product not found.' })
   }
   res.json(mapProduct(rows[0]))
+})
+
+app.delete('/api/products/:id/permanent', requireAdminApiAuth, async (req, res) => {
+  const { rows } = await pool.query(
+    `
+      delete from products
+      where id = $1 and deleted_at is not null
+      returning *
+    `,
+    [req.params.id]
+  )
+  if (!rows.length) {
+    return res.status(404).json({ error: 'Product not found.' })
+  }
+  return res.status(204).end()
 })
 
 app.post('/api/orders', publicWriteRateLimiter, async (req, res) => {
@@ -1506,6 +1536,21 @@ app.post('/api/reviews/:id/restore', requireAdminApiAuth, async (req, res) => {
     return res.status(404).json({ error: 'Review not found.' })
   }
   res.json(mapReview(rows[0]))
+})
+
+app.delete('/api/reviews/:id/permanent', requireAdminApiAuth, async (req, res) => {
+  const { rows } = await pool.query(
+    `
+      delete from reviews
+      where id = $1 and deleted_at is not null
+      returning *
+    `,
+    [req.params.id]
+  )
+  if (!rows.length) {
+    return res.status(404).json({ error: 'Review not found.' })
+  }
+  return res.status(204).end()
 })
 
 app.post('/api/messages', publicWriteRateLimiter, async (req, res) => {

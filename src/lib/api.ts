@@ -155,6 +155,10 @@ export function restoreCollection(id: string) {
   return request<Collection>(`/collections/${id}/restore`, { method: 'POST' })
 }
 
+export function permanentlyDeleteCollection(id: string) {
+  return request<void>(`/collections/${id}/permanent`, { method: 'DELETE' })
+}
+
 export function createProduct(product: Product) {
   return request<Product>('/products', { method: 'POST', body: JSON.stringify(product) })
 }
@@ -169,6 +173,10 @@ export function deleteProduct(id: string) {
 
 export function restoreProduct(id: string) {
   return request<Product>(`/products/${id}/restore`, { method: 'POST' })
+}
+
+export function permanentlyDeleteProduct(id: string) {
+  return request<void>(`/products/${id}/permanent`, { method: 'DELETE' })
 }
 
 export function createOrder(order: Order) {
@@ -201,6 +209,10 @@ export function deleteReview(id: string) {
 
 export function restoreReview(id: string) {
   return request<Review>(`/reviews/${id}/restore`, { method: 'POST' })
+}
+
+export function permanentlyDeleteReview(id: string) {
+  return request<void>(`/reviews/${id}/permanent`, { method: 'DELETE' })
 }
 
 export function createMessage(message: ContactMessage) {

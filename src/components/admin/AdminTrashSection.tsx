@@ -13,8 +13,11 @@ interface AdminTrashSectionProps {
   restoreDeletedOrder: (order: Order) => void
   permanentlyDeleteOrder: (order: Order) => void
   restoreDeletedProduct: (product: Product) => void
+  permanentlyDeleteProduct: (product: Product) => void
   restoreDeletedCollection: (collection: Collection) => void
+  permanentlyDeleteCollection: (collection: Collection) => void
   restoreDeletedReview: (review: Review) => void
+  permanentlyDeleteReview: (review: Review) => void
 }
 
 export function AdminTrashSection({
@@ -26,8 +29,11 @@ export function AdminTrashSection({
   restoreDeletedOrder,
   permanentlyDeleteOrder,
   restoreDeletedProduct,
+  permanentlyDeleteProduct,
   restoreDeletedCollection,
-  restoreDeletedReview
+  permanentlyDeleteCollection,
+  restoreDeletedReview,
+  permanentlyDeleteReview
 }: AdminTrashSectionProps) {
   return (
     <div className="grid gap-6">
@@ -124,9 +130,14 @@ export function AdminTrashSection({
                     ) : null}
                   </div>
                 </div>
-                <button type="button" onClick={() => restoreDeletedProduct(product)} className="primary-button px-5">
-                  Restaurer
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => restoreDeletedProduct(product)} className="primary-button px-5">
+                    Restaurer
+                  </button>
+                  <button type="button" onClick={() => permanentlyDeleteProduct(product)} className="secondary-button px-5">
+                    Supprimer definitivement
+                  </button>
+                </div>
               </div>
             ))
           ) : (
@@ -166,9 +177,14 @@ export function AdminTrashSection({
                     ) : null}
                   </div>
                 </div>
-                <button type="button" onClick={() => restoreDeletedCollection(collection)} className="primary-button px-5">
-                  Restaurer
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => restoreDeletedCollection(collection)} className="primary-button px-5">
+                    Restaurer
+                  </button>
+                  <button type="button" onClick={() => permanentlyDeleteCollection(collection)} className="secondary-button px-5">
+                    Supprimer definitivement
+                  </button>
+                </div>
               </div>
             ))
           ) : (
@@ -201,9 +217,14 @@ export function AdminTrashSection({
                       <p className="mt-3 text-xs text-[#9a8ea5]">Supprime le {datetime.format(new Date(review.deletedAt))}</p>
                     ) : null}
                   </div>
-                  <button type="button" onClick={() => restoreDeletedReview(review)} className="primary-button px-5">
-                    Restaurer
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={() => restoreDeletedReview(review)} className="primary-button px-5">
+                      Restaurer
+                    </button>
+                    <button type="button" onClick={() => permanentlyDeleteReview(review)} className="secondary-button px-5">
+                      Supprimer definitivement
+                    </button>
+                  </div>
                 </div>
               </div>
             ))

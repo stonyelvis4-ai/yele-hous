@@ -55,7 +55,10 @@ import {
   fetchPublicCollection,
   fetchPublicProduct,
   fetchPublicBootstrap,
+  permanentlyDeleteCollection as permanentlyDeleteCollectionRequest,
   permanentlyDeleteOrder as permanentlyDeleteOrderRequest,
+  permanentlyDeleteProduct as permanentlyDeleteProductRequest,
+  permanentlyDeleteReview as permanentlyDeleteReviewRequest,
   restoreOrder as restoreOrderRequest,
   restoreCollection as restoreCollectionRequest,
   restoreProduct as restoreProductRequest,
@@ -1849,6 +1852,25 @@ export default function App() {
     })()
   }
 
+  const permanentlyDeleteAdminCollection = (collection: Collection) => {
+    if (!window.confirm(`Supprimer definitivement la collection ${collection.name} ? Cette action est irreversible.`)) {
+      return
+    }
+
+    void (async () => {
+      try {
+        if (isDatabaseReady) {
+          await permanentlyDeleteCollectionRequest(collection.id)
+        }
+        setDeletedCollections((current) => current.filter((item) => item.id !== collection.id))
+        showToast('Suppression definitive', `La collection ${collection.name} a ete retiree definitivement.`)
+      } catch (error) {
+        console.error(error)
+        showToast('Suppression impossible', 'La collection n a pas pu etre supprimee definitivement.')
+      }
+    })()
+  }
+
   const restoreDeletedProduct = (product: Product) => {
     void (async () => {
       try {
@@ -1859,6 +1881,25 @@ export default function App() {
       } catch (error) {
         console.error(error)
         showToast('Restauration impossible', 'Le produit n a pas pu etre restaure.')
+      }
+    })()
+  }
+
+  const permanentlyDeleteAdminProduct = (product: Product) => {
+    if (!window.confirm(`Supprimer definitivement le produit ${product.name} ? Cette action est irreversible.`)) {
+      return
+    }
+
+    void (async () => {
+      try {
+        if (isDatabaseReady) {
+          await permanentlyDeleteProductRequest(product.id)
+        }
+        setDeletedProducts((current) => current.filter((item) => item.id !== product.id))
+        showToast('Suppression definitive', `Le produit ${product.name} a ete retire definitivement.`)
+      } catch (error) {
+        console.error(error)
+        showToast('Suppression impossible', 'Le produit n a pas pu etre supprime definitivement.')
       }
     })()
   }
@@ -1967,6 +2008,25 @@ export default function App() {
       } catch (error) {
         console.error(error)
         setDeliveryCommuneMessage('Impossible d enregistrer cette commune pour le moment.')
+      }
+    })()
+  }
+
+  const permanentlyDeleteAdminReview = (review: Review) => {
+    if (!window.confirm(`Supprimer definitivement l avis ${review.title} ? Cette action est irreversible.`)) {
+      return
+    }
+
+    void (async () => {
+      try {
+        if (isDatabaseReady) {
+          await permanentlyDeleteReviewRequest(review.id)
+        }
+        setDeletedReviews((current) => current.filter((item) => item.id !== review.id))
+        showToast('Suppression definitive', `L avis ${review.title} a ete retire definitivement.`)
+      } catch (error) {
+        console.error(error)
+        showToast('Suppression impossible', 'L avis n a pas pu etre supprime definitivement.')
       }
     })()
   }
@@ -2358,8 +2418,11 @@ export default function App() {
                     restoreDeletedOrder={restoreDeletedOrder}
                     permanentlyDeleteOrder={permanentlyDeleteAdminOrder}
                     restoreDeletedProduct={restoreDeletedProduct}
+                    permanentlyDeleteProduct={permanentlyDeleteAdminProduct}
                     restoreDeletedCollection={restoreDeletedCollection}
+                    permanentlyDeleteCollection={permanentlyDeleteAdminCollection}
                     restoreDeletedReview={restoreDeletedReview}
+                    permanentlyDeleteReview={permanentlyDeleteAdminReview}
                   />
                 ) : null}
 
