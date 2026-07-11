@@ -18,6 +18,8 @@ const explicitAllowedOrigins = (process.env.CORS_ALLOWED_ORIGINS ?? '')
 const appOrigins = new Set(
   [
     'https://yele-house.vercel.app',
+    'https://yelehouse.com',
+    'https://www.yelehouse.com',
     process.env.APP_ORIGIN?.trim(),
     process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
     ...explicitAllowedOrigins
