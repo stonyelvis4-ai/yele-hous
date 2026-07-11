@@ -17,6 +17,7 @@ export interface Collection {
   description: string
   image: string
   video?: string
+  hasDeferredMedia?: boolean
   isFeatured?: boolean
   deletedAt?: string
 }
@@ -37,6 +38,7 @@ export interface Product {
   image: string
   images: string[]
   video?: string
+  hasDeferredMedia?: boolean
   deletedAt?: string
 }
 

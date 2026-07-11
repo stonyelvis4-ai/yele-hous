@@ -130,6 +130,16 @@ function defaultCollectionDescription() {
   return 'Nouvelle tendance de la Maison, prete a etre enrichie depuis le back-office.'
 }
 
+function collectionFallbackImage() {
+  return 'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=1200&q=80'
+}
+
+function shouldDeferPublicMedia(value) {
+  const normalized = String(value ?? '').trim()
+  if (!normalized) return false
+  return imageDataUrlPattern.test(normalized) || videoDataUrlPattern.test(normalized) || normalized.length > 4096
+}
+
 function normalizeSlugValue(value) {
   return String(value ?? '')
     .trim()
@@ -306,10 +316,18 @@ function mapProduct(row) {
 }
 
 function stripPublicProductMedia(product) {
+  const shouldDeferImage = shouldDeferPublicMedia(product.image)
+  const shouldDeferGallery = Array.isArray(product.images) && product.images.some((image) => shouldDeferPublicMedia(image))
+  const shouldDeferVideo = shouldDeferPublicMedia(product.video)
+  const hasDeferredMedia = shouldDeferImage || shouldDeferGallery || shouldDeferVideo
+  const publicImage = shouldDeferImage ? productFallbackByCategory(product.category) : product.image
+
   return {
     ...product,
-    images: product.image ? [product.image] : [],
-    video: undefined
+    image: publicImage,
+    images: publicImage ? [publicImage] : [],
+    video: shouldDeferVideo ? undefined : product.video,
+    hasDeferredMedia
   }
 }
 
@@ -327,9 +345,15 @@ function mapCollection(row) {
 }
 
 function stripPublicCollectionMedia(collection) {
+  const shouldDeferImage = shouldDeferPublicMedia(collection.image)
+  const shouldDeferVideo = shouldDeferPublicMedia(collection.video)
+  const hasDeferredMedia = shouldDeferImage || shouldDeferVideo
+
   return {
     ...collection,
-    video: undefined
+    image: shouldDeferImage ? collectionFallbackImage() : collection.image,
+    video: shouldDeferVideo ? undefined : collection.video,
+    hasDeferredMedia
   }
 }
 
@@ -873,6 +897,30 @@ app.get('/api/public/products/:id', async (req, res) => {
 
   res.setHeader('Cache-Control', 'public, max-age=30, s-maxage=60, stale-while-revalidate=300')
   res.json(mapProduct(rows[0]))
+})
+
+app.get('/api/public/collections/:id', async (req, res) => {
+  const id = String(req.params.id ?? '').trim()
+  if (!id) {
+    return res.status(400).json({ error: 'Collection id is required.' })
+  }
+
+  const { rows } = await pool.query(
+    `
+      select id, name, slug, description, image, video, is_featured, deleted_at
+      from collections
+      where id = $1 and deleted_at is null
+      limit 1
+    `,
+    [id]
+  )
+
+  if (!rows.length) {
+    return res.status(404).json({ error: 'Collection not found.' })
+  }
+
+  res.setHeader('Cache-Control', 'public, max-age=30, s-maxage=60, stale-while-revalidate=300')
+  res.json(mapCollection(rows[0]))
 })
 
 app.get('/api/admin/bootstrap', requireAdminApiAuth, async (_req, res) => {

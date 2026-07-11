@@ -52,6 +52,7 @@ import {
   deleteProduct as deleteProductRequest,
   deleteReview as deleteReviewRequest,
   fetchAdminBootstrap,
+  fetchPublicCollection,
   fetchPublicProduct,
   fetchPublicBootstrap,
   restoreCollection as restoreCollectionRequest,
@@ -565,6 +566,8 @@ export default function App() {
   const [cartValidation, setCartValidation] = useState<CartValidationResult | null>(null)
   const [cartValidationLoading, setCartValidationLoading] = useState(false)
   const [cartValidationError, setCartValidationError] = useState('')
+  const warmedProductMediaRef = useRef(new Set<string>())
+  const warmedCollectionMediaRef = useRef(new Set<string>())
   const galleryInputRef = useRef<HTMLInputElement | null>(null)
   const cameraInputRef = useRef<HTMLInputElement | null>(null)
   const galleryVideoInputRef = useRef<HTMLInputElement | null>(null)
@@ -976,6 +979,69 @@ export default function App() {
 
     return [...differentCategory, ...sameCategory].slice(0, 3)
   }, [activeProducts, previewProduct])
+
+  useEffect(() => {
+    if (!isDatabaseReady || path.startsWith('/admin') || !isPublicBootstrapResolved) return
+
+    const collectionTargets = featuredCollections
+      .filter((collection) => collection.hasDeferredMedia && !warmedCollectionMediaRef.current.has(collection.id))
+      .slice(0, 3)
+    const productTargets = [...categoryHighlights, ...filteredProducts]
+      .filter((product, index, items) => items.findIndex((entry) => entry.id === product.id) === index)
+      .filter((product) => product.hasDeferredMedia && !warmedProductMediaRef.current.has(product.id))
+      .slice(0, 8)
+
+    if (!collectionTargets.length && !productTargets.length) return
+
+    let cancelled = false
+
+    const warmStorefrontMedia = async () => {
+      const fetchedCollections = await Promise.all(
+        collectionTargets.map(async (collection) => {
+          warmedCollectionMediaRef.current.add(collection.id)
+          try {
+            return await fetchPublicCollection(collection.id)
+          } catch (error) {
+            console.error(error)
+            return null
+          }
+        })
+      )
+
+      const fetchedProducts = await Promise.all(
+        productTargets.map(async (product) => {
+          warmedProductMediaRef.current.add(product.id)
+          try {
+            return await fetchPublicProduct(product.id)
+          } catch (error) {
+            console.error(error)
+            return null
+          }
+        })
+      )
+
+      if (cancelled) return
+
+      const nextCollections = fetchedCollections.filter(Boolean) as Collection[]
+      const nextProducts = fetchedProducts.filter(Boolean) as Product[]
+
+      if (nextCollections.length) {
+        const collectionMap = new Map(nextCollections.map((collection) => [collection.id, collection]))
+        setCollections((current) => current.map((collection) => collectionMap.get(collection.id) ?? collection))
+      }
+
+      if (nextProducts.length) {
+        const productMap = new Map(nextProducts.map((product) => [product.id, product]))
+        setProducts((current) => current.map((product) => productMap.get(product.id) ?? product))
+      }
+    }
+
+    void warmStorefrontMedia()
+
+    return () => {
+      cancelled = true
+    }
+  }, [categoryHighlights, featuredCollections, filteredProducts, isDatabaseReady, isPublicBootstrapResolved, path])
 
   useEffect(() => {
     const activeProductIds = new Set(activeProducts.map((product) => product.id))
