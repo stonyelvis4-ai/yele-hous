@@ -85,7 +85,7 @@ export function AdminOrdersSection({
                     className={`filter-chip inline-flex items-center gap-2 ${order.status === status ? 'filter-chip-active' : ''}`}
                   >
                     {status === 'Annulee' ? <Trash2 size={14} /> : null}
-                    {status === 'Annulee' ? 'Corbeille' : status}
+                    {status === 'Annulee' ? 'Annuler' : status}
                   </button>
                 ))}
                 <a

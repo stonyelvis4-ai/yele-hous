@@ -1750,7 +1750,33 @@ export default function App() {
       try {
         const updatedOrder = isDatabaseReady ? await updateOrderStatusRequest(order.id, status) : { ...order, status }
         setOrders((current) => current.map((item) => (item.id === order.id ? updatedOrder : item)))
-        showToast('Commande mise a jour', `La commande ${order.id} est maintenant en statut ${status}.`)
+        const stockAdjustment =
+          order.status !== 'Annulee' && status === 'Annulee'
+            ? 1
+            : order.status === 'Annulee' && status !== 'Annulee'
+              ? -1
+              : 0
+
+        if (stockAdjustment) {
+          setProducts((current) =>
+            current.map((product) => {
+              const orderedQuantity = order.items
+                .filter((item) => item.productId === product.id)
+                .reduce((total, item) => total + item.quantity, 0)
+
+              return orderedQuantity
+                ? { ...product, stock: Math.max(product.stock + stockAdjustment * orderedQuantity, 0) }
+                : product
+            })
+          )
+        }
+
+        showToast(
+          status === 'Annulee' ? 'Commande annulee' : 'Commande mise a jour',
+          status === 'Annulee'
+            ? `La commande ${order.id} est annulee et ses articles sont de nouveau disponibles dans la vitrine.`
+            : `La commande ${order.id} est maintenant en statut ${status}.`
+        )
       } catch (error) {
         console.error(error)
         showToast('Mise a jour impossible', 'Le statut de la commande n a pas pu etre modifie.')

@@ -890,7 +890,8 @@ app.get('/api/public/bootstrap', async (_req, res) => {
   const collections = collectionRows.map(stripPublicCollectionMedia)
   const products = productRows.map(stripPublicProductMedia)
 
-  res.setHeader('Cache-Control', 'public, max-age=30, s-maxage=60, stale-while-revalidate=300')
+  // Product availability must reflect a newly cancelled order immediately.
+  res.setHeader('Cache-Control', 'no-store')
   res.json({ collections, products, reviews, deliveryCommunes, shippingRates })
 })
 
@@ -1426,10 +1427,82 @@ app.post('/api/orders', publicWriteRateLimiter, async (req, res) => {
 })
 
 app.patch('/api/orders/:id/status', requireAdminApiAuth, async (req, res) => {
-  await pool.query('update orders set status = $2, updated_at = now() where id = $1', [
-    req.params.id,
-    req.body.status
-  ])
+  const status = String(req.body.status ?? '').trim()
+  assert(allowedOrderStatuses.has(status), 'Order status is invalid.')
+
+  const client = await pool.connect()
+
+  try {
+    await client.query('begin')
+    const orderResult = await client.query(
+      'select id, status from orders where id = $1 and deleted_at is null for update',
+      [req.params.id]
+    )
+
+    if (!orderResult.rows.length) {
+      await client.query('rollback')
+      return res.status(404).json({ error: 'Order not found.' })
+    }
+
+    const previousStatus = orderResult.rows[0].status
+    const isCancelling = previousStatus !== 'Annulee' && status === 'Annulee'
+    const isReactivating = previousStatus === 'Annulee' && status !== 'Annulee'
+
+    if (isCancelling) {
+      // Restock each ordered product exactly once when the order is cancelled.
+      await client.query(
+        `
+          update products p
+          set stock = p.stock + items.quantity,
+              updated_at = now()
+          from (
+            select product_id, sum(quantity)::integer as quantity
+            from order_items
+            where order_id = $1 and product_id is not null
+            group by product_id
+          ) items
+          where p.id = items.product_id
+        `,
+        [req.params.id]
+      )
+    }
+
+    if (isReactivating) {
+      const { rows: items } = await client.query(
+        `
+          select product_id, sum(quantity)::integer as quantity
+          from order_items
+          where order_id = $1 and product_id is not null
+          group by product_id
+        `,
+        [req.params.id]
+      )
+
+      for (const item of items) {
+        const productResult = await client.query('select stock from products where id = $1 for update', [item.product_id])
+        if (!productResult.rows.length || productResult.rows[0].stock < item.quantity) {
+          await client.query('rollback')
+          return res.status(409).json({ error: 'Insufficient stock to reactivate this order.' })
+        }
+      }
+
+      for (const item of items) {
+        await client.query('update products set stock = stock - $2, updated_at = now() where id = $1', [
+          item.product_id,
+          item.quantity
+        ])
+      }
+    }
+
+    await client.query('update orders set status = $2, updated_at = now() where id = $1', [req.params.id, status])
+    await client.query('commit')
+  } catch (error) {
+    await client.query('rollback')
+    throw error
+  } finally {
+    client.release()
+  }
+
   const orders = await listOrders()
   res.json(orders.find((entry) => entry.id === req.params.id))
 })
